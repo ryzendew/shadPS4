@@ -16,5 +16,5 @@ void assert_fail_impl() {
     Common::Log::Stop();
     std::fflush(stdout);
     Crash();
-    throw std::runtime_error("Unreachable code");
+    //throw std::runtime_error("Unreachable code");
 }
