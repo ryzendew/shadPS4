@@ -109,7 +109,7 @@ void GameListFrame::SetListBackgroundImage(QTableWidgetItem* item) {
         backgroundImage = m_game_list_utils.BlurImage(image, image.rect(), 16);
 
         std::filesystem::path img_path =
-           std::string stdStr = std::string(config_dir) + "/game_data/") / m_game_info->m_games[item->row()].serial;
+        std::string stdStr = std::string(config_dir) + "/game_data/") / m_game_info->m_games[item->row()].serial;
         std::filesystem::create_directories(img_path);
         if (!backgroundImage.save(blurredPic1Path, "PNG")) {
             // qDebug() << "Error: Unable to save image.";
