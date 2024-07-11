@@ -115,7 +115,7 @@ void GameGridFrame::SetGridBackgroundImage(int row, int column) {
         QString pic1Path = QString::fromStdString((*m_games_shared)[itemID].pic_path);
         QString blurredPic1Path =
             qApp->applicationDirPath() +
-            QString::fromStdString("/game_data/" + (*m_games_shared)[itemID].serial + "/pic1.png");
+      QString gameDataPath = qApp->applicationDirPath() + "/game_data/" + (*m_games_shared)[itemID].serial + "/pic1.png");
 
         backgroundImage = QImage(blurredPic1Path);
         if (backgroundImage.isNull()) {
@@ -123,7 +123,7 @@ void GameGridFrame::SetGridBackgroundImage(int row, int column) {
             backgroundImage = m_game_list_utils.BlurImage(image, image.rect(), 16);
 
             std::filesystem::path img_path =
-                std::filesystem::path("game_data/") / (*m_games_shared)[itemID].serial;
+            std::string stdStr = std::string(config_dir) + "/game_data/" / (*m_games_shared)[itemID].serial;
             std::filesystem::create_directories(img_path);
             if (!backgroundImage.save(blurredPic1Path, "PNG")) {
                 // qDebug() << "Error: Unable to save image.";
