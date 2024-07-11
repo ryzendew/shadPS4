@@ -20,12 +20,13 @@ int main(int argc, char* argv[]) {
     // Load configurations and initialize Qt application
     const auto config_dir = Common::FS::GetUserPath(Common::FS::PathType::UserDir);
     Config::load(config_dir / "config.toml");
-    QString gameDataPath = qApp->applicationDirPath() + "/game_data/";
-    std::string stdStr = gameDataPath.toStdString();
-    std::filesystem::path path(stdStr);
 #ifdef _WIN64
+    QString gameDataPath = qApp->applicationDirPath() + "/game_data/";
     std::wstring wstdStr = gameDataPath.toStdWString();
-    path = std::filesystem::path(wstdStr);
+    std::filesystem::path path(wstdStr);
+#else
+    std::string stdStr = std::string(config_dir) + "/game_data/";
+    std::filesystem::path path(stdStr);
 #endif
     std::filesystem::create_directory(path);
 
