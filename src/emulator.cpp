@@ -13,6 +13,7 @@
 #include "common/config.h"
 #include "common/debug.h"
 #include "common/logging/backend.h"
+#include "common/ntapi.h"
 #include "common/path_util.h"
 #include "common/singleton.h"
 #include "common/version.h"
@@ -37,6 +38,11 @@ Emulator::Emulator()
     // Read configuration file.
     const auto config_dir = Common::FS::GetUserPath(Common::FS::PathType::UserDir);
     Config::load(config_dir / "config.toml");
+
+    // Initialize NT API functions
+#ifdef _WIN32
+    Common::NtApi::Initialize();
+#endif
 
     // Start logger.
     Common::Log::Initialize();

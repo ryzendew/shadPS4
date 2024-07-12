@@ -60,7 +60,7 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-find_package(Boost 1.83.0 CONFIG)
+find_package(Boost 1.84.0 CONFIG)
 find_package(cryptopp 8.9.0 MODULE)
 find_package(fmt 10.2.1 CONFIG)
 find_package(glslang 14.2.0 CONFIG)
@@ -270,6 +270,8 @@ set(COMMON src/common/logging/backend.cpp
            src/common/types.h
            src/common/uint128.h
            src/common/version.h
+           src/common/ntapi.h
+           src/common/ntapi.cpp
 )
 
 set(CORE src/core/aerolib/stubs.cpp
@@ -575,6 +577,8 @@ endif()
 if (WIN32)
     target_sources(shadps4 PRIVATE src/shadps4.rc)
 endif()
+
+add_definitions(-DBOOST_ASIO_STANDALONE)
 
 target_include_directories(shadps4 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
