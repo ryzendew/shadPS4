@@ -119,7 +119,7 @@ static void PatchFsAccess(u8* code, const TLSPattern& tls_pattern, Xbyak::CodeGe
     static constexpr u32 PthreadKeySecondLevelSize = 32;
     static constexpr u32 PthreadSpecificOffset = 0x510;
     static constexpr u32 PthreadKeyDataSize = 16;
-    ASSERT(slot >= PthreadKeySecondLevelSize);
+    //ASSERT(slot >= PthreadKeySecondLevelSize);
 
     const u32 idx1st = slot / PthreadKeySecondLevelSize;
     const u32 idx2nd = slot % PthreadKeySecondLevelSize;

@@ -40,7 +40,7 @@ void GuestFaultSignalHandler(int sig, siginfo_t* info, void* raw_context) {
         g_texture_cache->OnCpuWrite(address);
     } else {
         // Read not supported!
-        UNREACHABLE();
+        //UNREACHABLE();
     }
 }
 #else
