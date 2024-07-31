@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <thread>
 #include "common/assert.h"
 #include "core/libraries/kernel/event_queue.h"
 
@@ -77,9 +78,7 @@ bool EqueueInternal::TriggerEvent(u64 ident, s16 filter, void* trigger_data) {
         std::scoped_lock lock{m_mutex};
 
         for (auto& event : m_events) {
-            ASSERT_MSG(event.event.filter == filter,
-                       "Event to trigger doesn't match to queue events");
-            if (event.event.ident == ident) {
+            if ((event.event.ident == ident) && (event.event.filter == filter)) {
                 event.Trigger(trigger_data);
                 has_found = true;
             }
@@ -94,7 +93,7 @@ int EqueueInternal::GetTriggeredEvents(SceKernelEvent* ev, int num) {
 
     for (auto& event : m_events) {
         if (event.IsTriggered()) {
-            if (ev->flags & SceKernelEvent::Flags::Clear) {
+            if (event.event.flags & SceKernelEvent::Flags::Clear) {
                 event.Reset();
             }
 

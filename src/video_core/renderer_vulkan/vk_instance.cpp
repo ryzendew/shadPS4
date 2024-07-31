@@ -9,6 +9,7 @@
 
 #include "common/assert.h"
 #include "sdl_window.h"
+#include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 
@@ -26,6 +27,15 @@ std::vector<std::string> GetSupportedExtensions(vk::PhysicalDevice physical) {
         supported_extensions.emplace_back(extension.extensionName.data());
     }
     return supported_extensions;
+}
+
+std::unordered_map<vk::Format, vk::FormatProperties> GetFormatProperties(
+    vk::PhysicalDevice physical) {
+    std::unordered_map<vk::Format, vk::FormatProperties> format_properties;
+    for (const auto& format : LiverpoolToVK::GetAllFormats()) {
+        format_properties.emplace(format, physical.getFormatProperties(format));
+    }
+    return format_properties;
 }
 
 std::string GetReadableVersion(u32 version) {
@@ -93,6 +103,7 @@ Instance::Instance(Frontend::WindowSDL& window, s32 physical_device_index,
     }
 
     available_extensions = GetSupportedExtensions(physical_device);
+    format_properties = GetFormatProperties(physical_device);
     properties = physical_device.getProperties();
     CollectDeviceParameters();
     ASSERT_MSG(properties.apiVersion >= TargetVulkanApiVersion,
@@ -102,6 +113,22 @@ Instance::Instance(Frontend::WindowSDL& window, s32 physical_device_index,
 
     CreateDevice();
     CollectToolingInfo();
+
+    // Check and log format support details.
+    for (const auto& key : format_properties | std::views::keys) {
+        const auto format = key;
+        if (!IsFormatSupported(format)) {
+            const auto alternative = GetAlternativeFormat(format);
+            if (IsFormatSupported(alternative)) {
+                LOG_WARNING(Render_Vulkan, "Format {} is not supported, falling back to {}",
+                            vk::to_string(format), vk::to_string(alternative));
+            } else {
+                LOG_ERROR(Render_Vulkan,
+                          "Format {} is not supported and no suitable alternative is supported.",
+                          vk::to_string(format));
+            }
+        }
+    }
 }
 
 Instance::~Instance() {
@@ -137,10 +164,11 @@ bool Instance::CreateDevice() {
         vk::PhysicalDeviceVulkan13Features,
         vk::PhysicalDeviceWorkgroupMemoryExplicitLayoutFeaturesKHR,
         vk::PhysicalDeviceDepthClipControlFeaturesEXT>();
-    const vk::StructureChain properties_chain =
-        physical_device.getProperties2<vk::PhysicalDeviceProperties2,
-                                       vk::PhysicalDevicePortabilitySubsetPropertiesKHR,
-                                       vk::PhysicalDeviceExternalMemoryHostPropertiesEXT>();
+    const vk::StructureChain properties_chain = physical_device.getProperties2<
+        vk::PhysicalDeviceProperties2, vk::PhysicalDevicePortabilitySubsetPropertiesKHR,
+        vk::PhysicalDeviceExternalMemoryHostPropertiesEXT, vk::PhysicalDeviceVulkan11Properties>();
+    subgroup_size = properties_chain.get<vk::PhysicalDeviceVulkan11Properties>().subgroupSize;
+    LOG_INFO(Render_Vulkan, "Physical device subgroup size {}", subgroup_size);
 
     features = feature_chain.get().features;
     if (available_extensions.empty()) {
@@ -165,13 +193,10 @@ bool Instance::CreateDevice() {
     };
 
     add_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    image_format_list = add_extension(VK_KHR_IMAGE_FORMAT_LIST_EXTENSION_NAME);
     shader_stencil_export = add_extension(VK_EXT_SHADER_STENCIL_EXPORT_EXTENSION_NAME);
     external_memory_host = add_extension(VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME);
-    tooling_info = add_extension(VK_EXT_TOOLING_INFO_EXTENSION_NAME);
     custom_border_color = add_extension(VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME);
     add_extension(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
-    add_extension(VK_KHR_MAINTENANCE_4_EXTENSION_NAME);
     add_extension(VK_EXT_DEPTH_CLIP_CONTROL_EXTENSION_NAME);
     add_extension(VK_EXT_DEPTH_RANGE_UNRESTRICTED_EXTENSION_NAME);
     workgroup_memory_explicit_layout =
@@ -180,6 +205,13 @@ bool Instance::CreateDevice() {
     color_write_en = add_extension(VK_EXT_COLOR_WRITE_ENABLE_EXTENSION_NAME);
     color_write_en &= add_extension(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
     const auto calibrated_timestamps = add_extension(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME);
+
+    // These extensions are promoted by Vulkan 1.3, but for greater compatibility we use Vulkan 1.2
+    // with extensions.
+    tooling_info = add_extension(VK_EXT_TOOLING_INFO_EXTENSION_NAME);
+    add_extension(VK_KHR_MAINTENANCE_4_EXTENSION_NAME);
+    add_extension(VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME);
+    add_extension(VK_EXT_SHADER_DEMOTE_TO_HELPER_INVOCATION_EXTENSION_NAME);
 
     const auto family_properties = physical_device.getQueueFamilyProperties();
     if (family_properties.empty()) {
@@ -210,7 +242,6 @@ bool Instance::CreateDevice() {
     };
 
     const auto vk12_features = feature_chain.get<vk::PhysicalDeviceVulkan12Features>();
-    const auto vk13_features = feature_chain.get<vk::PhysicalDeviceVulkan13Features>();
     vk::StructureChain device_chain = {
         vk::DeviceCreateInfo{
             .queueCreateInfoCount = 1u,
@@ -231,6 +262,7 @@ bool Instance::CreateDevice() {
                 .shaderStorageImageExtendedFormats = features.shaderStorageImageExtendedFormats,
                 .shaderStorageImageMultisample = features.shaderStorageImageMultisample,
                 .shaderClipDistance = features.shaderClipDistance,
+                .shaderInt64 = features.shaderInt64,
                 .shaderInt16 = features.shaderInt16,
             },
         },
@@ -244,10 +276,14 @@ bool Instance::CreateDevice() {
             .hostQueryReset = vk12_features.hostQueryReset,
             .timelineSemaphore = vk12_features.timelineSemaphore,
         },
-        vk::PhysicalDeviceVulkan13Features{
-            .shaderDemoteToHelperInvocation = vk13_features.shaderDemoteToHelperInvocation,
-            .dynamicRendering = vk13_features.dynamicRendering,
-            .maintenance4 = vk13_features.maintenance4,
+        vk::PhysicalDeviceMaintenance4FeaturesKHR{
+            .maintenance4 = true,
+        },
+        vk::PhysicalDeviceDynamicRenderingFeaturesKHR{
+            .dynamicRendering = true,
+        },
+        vk::PhysicalDeviceShaderDemoteToHelperInvocationFeaturesEXT{
+            .shaderDemoteToHelperInvocation = true,
         },
         vk::PhysicalDeviceCustomBorderColorFeaturesEXT{
             .customBorderColors = true,
@@ -292,10 +328,14 @@ bool Instance::CreateDevice() {
         const bool has_host_time_domain =
             std::find(time_domains.cbegin(), time_domains.cend(),
                       vk::TimeDomainEXT::eQueryPerformanceCounter) != time_domains.cend();
-#else
+#elif __linux__
         const bool has_host_time_domain =
             std::find(time_domains.cbegin(), time_domains.cend(),
                       vk::TimeDomainEXT::eClockMonotonicRaw) != time_domains.cend();
+#else
+        // Tracy limitation means only Windows and Linux can use host time domain.
+        // https://github.com/shadps4-emu/tracy/blob/c6d779d78508514102fbe1b8eb28bda10d95bb2a/public/tracy/TracyVulkan.hpp#L384-L389
+        const bool has_host_time_domain = false;
 #endif
         if (has_host_time_domain) {
             static constexpr std::string_view context_name{"vk_rasterizer"};
@@ -366,6 +406,54 @@ void Instance::CollectToolingInfo() {
         has_renderdoc = has_renderdoc || name == "RenderDoc";
         has_nsight_graphics = has_nsight_graphics || name == "NVIDIA Nsight Graphics";
     }
+}
+
+bool Instance::IsFormatSupported(const vk::Format format) const {
+    if (format == vk::Format::eUndefined) [[unlikely]] {
+        return true;
+    }
+
+    const auto it = format_properties.find(format);
+    if (it == format_properties.end()) {
+        UNIMPLEMENTED_MSG("Properties of format {} have not been queried.", vk::to_string(format));
+    }
+
+    constexpr vk::FormatFeatureFlags optimal_flags = vk::FormatFeatureFlagBits::eTransferSrc |
+                                                     vk::FormatFeatureFlagBits::eTransferDst |
+                                                     vk::FormatFeatureFlagBits::eSampledImage;
+    return (it->second.optimalTilingFeatures & optimal_flags) == optimal_flags;
+}
+
+vk::Format Instance::GetAlternativeFormat(const vk::Format format) const {
+    if (format == vk::Format::eB5G6R5UnormPack16) {
+        return vk::Format::eR5G6B5UnormPack16;
+    }
+    return format;
+}
+
+vk::Format Instance::GetSupportedFormat(const vk::Format format) const {
+    if (IsFormatSupported(format)) [[likely]] {
+        return format;
+    }
+    const vk::Format alternative = GetAlternativeFormat(format);
+    if (IsFormatSupported(alternative)) [[likely]] {
+        return alternative;
+    }
+    return format;
+}
+
+vk::ComponentMapping Instance::GetSupportedComponentSwizzle(vk::Format format,
+                                                            vk::ComponentMapping swizzle) const {
+    if (IsFormatSupported(format)) [[likely]] {
+        return swizzle;
+    }
+
+    vk::ComponentMapping supported_swizzle = swizzle;
+    if (format == vk::Format::eB5G6R5UnormPack16) {
+        // B5G6R5 -> R5G6B5
+        std::swap(supported_swizzle.r, supported_swizzle.b);
+    }
+    return supported_swizzle;
 }
 
 } // namespace Vulkan

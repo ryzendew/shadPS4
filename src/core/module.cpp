@@ -7,16 +7,16 @@
 #include "common/logging/log.h"
 #include "common/string_util.h"
 #include "core/aerolib/aerolib.h"
+#include "core/cpu_patches.h"
 #include "core/loader/dwarf.h"
 #include "core/memory.h"
 #include "core/module.h"
-#include "core/tls.h"
 
 namespace Core {
 
 using EntryFunc = PS4_SYSV_ABI int (*)(size_t args, const void* argp, void* param);
 
-static u64 LoadAddress = SYSTEM_RESERVED + CODE_BASE_OFFSET;
+static u64 LoadOffset = CODE_BASE_OFFSET;
 static constexpr u64 CODE_BASE_INCR = 0x010000000u;
 
 static u64 GetAlignedSize(const elf_program_header& phdr) {
@@ -84,9 +84,10 @@ void Module::LoadModuleToMemory(u32& max_tls_index) {
 
     // Map module segments (and possible TLS trampolines)
     void** out_addr = reinterpret_cast<void**>(&base_virtual_addr);
-    memory->MapMemory(out_addr, LoadAddress, aligned_base_size + TrampolineSize,
-                      MemoryProt::CpuReadWrite, MemoryMapFlags::Fixed, VMAType::Code, name, true);
-    LoadAddress += CODE_BASE_INCR * (1 + aligned_base_size / CODE_BASE_INCR);
+    memory->MapMemory(out_addr, memory->SystemReservedVirtualBase() + LoadOffset,
+                      aligned_base_size + TrampolineSize, MemoryProt::CpuReadWrite,
+                      MemoryMapFlags::Fixed, VMAType::Code, name, true);
+    LoadOffset += CODE_BASE_INCR * (1 + aligned_base_size / CODE_BASE_INCR);
 
     // Initialize trampoline generator.
     void* trampoline_addr = std::bit_cast<void*>(base_virtual_addr + aligned_base_size);
@@ -130,7 +131,7 @@ void Module::LoadModuleToMemory(u32& max_tls_index) {
 
             add_segment(elf_pheader[i]);
             if (elf_pheader[i].p_flags & PF_EXEC) {
-                PatchTLS(segment_addr, segment_file_size, c);
+                PatchInstructions(segment_addr, segment_file_size, c);
             }
             break;
         }

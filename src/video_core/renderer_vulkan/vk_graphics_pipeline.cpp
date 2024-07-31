@@ -48,7 +48,7 @@ GraphicsPipeline::GraphicsPipeline(const Instance& instance_, Scheduler& schedul
 
     boost::container::static_vector<vk::VertexInputBindingDescription, 32> bindings;
     boost::container::static_vector<vk::VertexInputAttributeDescription, 32> attributes;
-    const auto& vs_info = stages[0];
+    const auto& vs_info = stages[u32(Shader::Stage::Vertex)];
     for (const auto& input : vs_info.vs_inputs) {
         if (input.instance_step_rate == Shader::Info::VsInput::InstanceIdType::OverStepRate0 ||
             input.instance_step_rate == Shader::Info::VsInput::InstanceIdType::OverStepRate1) {
@@ -179,20 +179,21 @@ GraphicsPipeline::GraphicsPipeline(const Instance& instance_, Scheduler& schedul
         .maxDepthBounds = key.depth_bounds_max,
     };
 
-    u32 shader_count = 1;
+    u32 shader_count{};
+    auto stage = u32(Shader::Stage::Vertex);
     std::array<vk::PipelineShaderStageCreateInfo, MaxShaderStages> shader_stages;
-    shader_stages[0] = vk::PipelineShaderStageCreateInfo{
+    shader_stages[shader_count++] = vk::PipelineShaderStageCreateInfo{
         .stage = vk::ShaderStageFlagBits::eVertex,
-        .module = modules[0],
+        .module = modules[stage],
         .pName = "main",
     };
-    if (modules[4]) {
-        shader_stages[1] = vk::PipelineShaderStageCreateInfo{
+    stage = u32(Shader::Stage::Fragment);
+    if (modules[stage]) {
+        shader_stages[shader_count++] = vk::PipelineShaderStageCreateInfo{
             .stage = vk::ShaderStageFlagBits::eFragment,
-            .module = modules[4],
+            .module = modules[stage],
             .pName = "main",
         };
-        ++shader_count;
     }
 
     const auto it = std::ranges::find(key.color_formats, vk::Format::eUndefined);
@@ -365,7 +366,9 @@ void GraphicsPipeline::BindResources(Core::MemoryManager* memory, StreamBuffer& 
         for (const auto& image_desc : stage.images) {
             const auto& tsharp = tsharps.emplace_back(
                 stage.ReadUd<AmdGpu::Image>(image_desc.sgpr_base, image_desc.dword_offset));
-            const auto& image_view = texture_cache.FindImageView(tsharp, image_desc.is_storage);
+            VideoCore::ImageInfo image_info{tsharp};
+            VideoCore::ImageViewInfo view_info{tsharp, image_desc.is_storage};
+            const auto& image_view = texture_cache.FindTexture(image_info, view_info);
             const auto& image = texture_cache.GetImage(image_view.image_id);
             image_infos.emplace_back(VK_NULL_HANDLE, *image_view.image_view, image.layout);
             set_writes.push_back({
@@ -383,7 +386,7 @@ void GraphicsPipeline::BindResources(Core::MemoryManager* memory, StreamBuffer& 
             }
         }
         for (const auto& sampler : stage.samplers) {
-            auto ssharp = stage.ReadUd<AmdGpu::Sampler>(sampler.sgpr_base, sampler.dword_offset);
+            auto ssharp = sampler.GetSsharp(stage);
             if (sampler.disable_aniso) {
                 const auto& tsharp = tsharps[sampler.associated_image];
                 if (tsharp.base_level == 0 && tsharp.last_level == 0) {
@@ -411,7 +414,7 @@ void GraphicsPipeline::BindResources(Core::MemoryManager* memory, StreamBuffer& 
 }
 
 void GraphicsPipeline::BindVertexBuffers(StreamBuffer& staging) const {
-    const auto& vs_info = stages[0];
+    const auto& vs_info = stages[u32(Shader::Stage::Vertex)];
     if (vs_info.vs_inputs.empty()) {
         return;
     }

@@ -7,7 +7,9 @@
 #include <boost/asio/io_context.hpp>
 
 #include "common/assert.h"
+#include "common/debug.h"
 #include "common/logging/log.h"
+#include "common/polyfill_thread.h"
 #include "common/singleton.h"
 #include "common/thread.h"
 #include "core/file_format/psf.h"
@@ -31,6 +33,9 @@
 #include <windows.h>
 #else
 #include <sys/mman.h>
+#ifdef __APPLE__
+#include <date/tz.h>
+#endif
 #endif
 
 namespace Libraries::Kernel {
@@ -56,7 +61,7 @@ static void KernelServiceThread(std::stop_token stoken) {
         HLE_TRACE;
         {
             std::unique_lock lock{m_asio_req};
-            cv_asio_req.wait(lock, stoken, [] { return asio_requests != 0; });
+            Common::CondvarWait(cv_asio_req, lock, stoken, [] { return asio_requests != 0; });
         }
         if (stoken.stop_requested()) {
             break;
@@ -80,6 +85,9 @@ static PS4_SYSV_ABI void stack_chk_fail() {
 
 int PS4_SYSV_ABI sceKernelMunmap(void* addr, size_t len) {
     LOG_INFO(Kernel_Vmm, "addr = {}, len = {:#x}", fmt::ptr(addr), len);
+    if (len == 0) {
+        return ORBIS_OK;
+    }
     auto* memory = Core::Memory::Instance();
     memory->UnmapMemory(std::bit_cast<VAddr>(addr), len);
     return SCE_OK;
@@ -180,7 +188,12 @@ s64 PS4_SYSV_ABI ps4__write(int d, const void* buf, std::size_t nbytes) {
 int PS4_SYSV_ABI sceKernelConvertUtcToLocaltime(time_t time, time_t* local_time,
                                                 struct OrbisTimesec* st, unsigned long* dst_sec) {
     LOG_TRACE(Kernel, "Called");
+#ifdef __APPLE__
+    // std::chrono::current_zone() not available yet.
+    const auto* time_zone = date::current_zone();
+#else
     const auto* time_zone = std::chrono::current_zone();
+#endif
     auto info = time_zone->get_info(std::chrono::system_clock::now());
 
     *local_time = info.offset.count() + info.save.count() * 60 + time;
@@ -222,7 +235,7 @@ s32 PS4_SYSV_ABI sceKernelLoadStartModule(const char* moduleFileName, size_t arg
     }
 
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    const auto path = mnt->GetHostFile(moduleFileName);
+    const auto path = mnt->GetHostPath(moduleFileName);
 
     // Load PRX module and relocate any modules that import it.
     auto* linker = Common::Singleton<Core::Linker>::Instance();
@@ -351,6 +364,10 @@ int PS4_SYSV_ABI _sigprocmask() {
     return ORBIS_OK;
 }
 
+int PS4_SYSV_ABI posix_getpagesize() {
+    return 4096;
+}
+
 void LibKernel_Register(Core::Loader::SymbolsResolver* sym) {
     service_thread = std::jthread{KernelServiceThread};
 
@@ -371,6 +388,7 @@ void LibKernel_Register(Core::Loader::SymbolsResolver* sym) {
                  sceKernelCheckedReleaseDirectMemory);
     LIB_FUNCTION("rVjRvHJ0X6c", "libkernel", 1, "libkernel", 1, 1, sceKernelVirtualQuery);
     LIB_FUNCTION("7oxv3PPCumo", "libkernel", 1, "libkernel", 1, 1, sceKernelReserveVirtualRange);
+    LIB_FUNCTION("BC+OG5m9+bw", "libkernel", 1, "libkernel", 1, 1, sceKernelGetDirectMemoryType);
     LIB_FUNCTION("pO96TwzOm5E", "libkernel", 1, "libkernel", 1, 1, sceKernelGetDirectMemorySize);
     LIB_FUNCTION("NcaWUxfMNIQ", "libkernel", 1, "libkernel", 1, 1, sceKernelMapNamedDirectMemory);
     LIB_FUNCTION("L-Q3LEjIbgA", "libkernel", 1, "libkernel", 1, 1, sceKernelMapDirectMemory);
@@ -391,6 +409,10 @@ void LibKernel_Register(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("VOx8NGmHXTs", "libkernel", 1, "libkernel", 1, 1, sceKernelGetCpumode);
     LIB_FUNCTION("Xjoosiw+XPI", "libkernel", 1, "libkernel", 1, 1, sceKernelUuidCreate);
 
+    LIB_FUNCTION("2SKEx6bSq-4", "libkernel", 1, "libkernel", 1, 1, sceKernelBatchMap);
+    LIB_FUNCTION("kBJzF8x4SyE", "libkernel", 1, "libkernel", 1, 1, sceKernelBatchMap2);
+    LIB_FUNCTION("DGMG3JshrZU", "libkernel", 1, "libkernel", 1, 1, sceKernelSetVirtualRangeName);
+
     // equeue
     LIB_FUNCTION("D0OdFMjp46I", "libkernel", 1, "libkernel", 1, 1, sceKernelCreateEqueue);
     LIB_FUNCTION("jpFjmgAC5AE", "libkernel", 1, "libkernel", 1, 1, sceKernelDeleteEqueue);
@@ -401,6 +423,7 @@ void LibKernel_Register(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("R74tt43xP6k", "libkernel", 1, "libkernel", 1, 1, sceKernelAddHRTimerEvent);
     LIB_FUNCTION("F6e0kwo4cnk", "libkernel", 1, "libkernel", 1, 1, sceKernelTriggerUserEvent);
     LIB_FUNCTION("LJDwdSNTnDg", "libkernel", 1, "libkernel", 1, 1, sceKernelDeleteUserEvent);
+    LIB_FUNCTION("mJ7aghmgvfc", "libkernel", 1, "libkernel", 1, 1, sceKernelGetEventId);
 
     // misc
     LIB_FUNCTION("WslcK1FQcGI", "libkernel", 1, "libkernel", 1, 1, sceKernelIsNeoMode);
@@ -413,6 +436,7 @@ void LibKernel_Register(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("-o5uEDpN+oY", "libkernel", 1, "libkernel", 1, 1, sceKernelConvertUtcToLocaltime);
     LIB_FUNCTION("WB66evu8bsU", "libkernel", 1, "libkernel", 1, 1, sceKernelGetCompiledSdkVersion);
     LIB_FUNCTION("DRuBt2pvICk", "libkernel", 1, "libkernel", 1, 1, ps4__read);
+    LIB_FUNCTION("k+AXqu2-eBc", "libScePosix", 1, "libkernel", 1, 1, posix_getpagesize);
 
     Libraries::Kernel::fileSystemSymbolsRegister(sym);
     Libraries::Kernel::timeSymbolsRegister(sym);

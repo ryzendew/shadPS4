@@ -61,12 +61,25 @@ enum class NumberFormat : u32 {
     Ubscaled = 13,
 };
 
+[[nodiscard]] std::string_view NameOf(DataFormat fmt);
 [[nodiscard]] std::string_view NameOf(NumberFormat fmt);
 
 int NumComponents(DataFormat format);
 int NumBits(DataFormat format);
+u32 ComponentBits(DataFormat format, u32 comp);
+s32 ComponentOffset(DataFormat format, u32 comp);
 
 } // namespace AmdGpu
+
+template <>
+struct fmt::formatter<AmdGpu::DataFormat> {
+    constexpr auto parse(format_parse_context& ctx) {
+        return ctx.begin();
+    }
+    auto format(AmdGpu::DataFormat fmt, format_context& ctx) const {
+        return fmt::format_to(ctx.out(), "{}", AmdGpu::NameOf(fmt));
+    }
+};
 
 template <>
 struct fmt::formatter<AmdGpu::NumberFormat> {

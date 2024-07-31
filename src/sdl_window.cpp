@@ -11,17 +11,23 @@
 #include "core/libraries/pad/pad.h"
 #include "input/controller.h"
 #include "sdl_window.h"
+#include "video_core/renderdoc.h"
+
+#ifdef __APPLE__
+#include <SDL3/SDL_metal.h>
+#endif
 
 namespace Frontend {
 
-WindowSDL::WindowSDL(s32 width_, s32 height_, Input::GameController* controller_)
+WindowSDL::WindowSDL(s32 width_, s32 height_, Input::GameController* controller_,
+                     std::string_view game_title)
     : width{width_}, height{height_}, controller{controller_} {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         UNREACHABLE_MSG("Failed to initialize SDL video subsystem: {}", SDL_GetError());
     }
     SDL_InitSubSystem(SDL_INIT_AUDIO);
 
-    const std::string title = "shadPS4 v" + std::string(Common::VERSION);
+    const std::string title = fmt::format("shadPS4 v{} | {}", Common::VERSION, game_title);
     SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, title.c_str());
     SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_CENTERED);
@@ -55,6 +61,9 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, Input::GameController* controller_
         window_info.render_surface = SDL_GetProperty(SDL_GetWindowProperties(window),
                                                      SDL_PROP_WINDOW_WAYLAND_SURFACE_POINTER, NULL);
     }
+#elif defined(SDL_PLATFORM_MACOS)
+    window_info.type = WindowSystemType::Metal;
+    window_info.render_surface = SDL_Metal_GetLayer(SDL_Metal_CreateView(window));
 #endif
 }
 
@@ -64,7 +73,7 @@ void WindowSDL::waitEvent() {
     // Called on main thread
     SDL_Event event;
 
-    if (!SDL_PollEvent(&event)) {
+    if (!SDL_WaitEvent(&event)) {
         return;
     }
 
@@ -98,6 +107,20 @@ void WindowSDL::onResize() {
 void WindowSDL::onKeyPress(const SDL_Event* event) {
     using Libraries::Pad::OrbisPadButtonDataOffset;
 
+#ifdef __APPLE__
+    // Use keys that are more friendly for keyboards without a keypad.
+    // Once there are key binding options this won't be necessary.
+    constexpr SDL_Keycode CrossKey = SDLK_N;
+    constexpr SDL_Keycode CircleKey = SDLK_B;
+    constexpr SDL_Keycode SquareKey = SDLK_V;
+    constexpr SDL_Keycode TriangleKey = SDLK_C;
+#else
+    constexpr SDL_Keycode CrossKey = SDLK_KP_2;
+    constexpr SDL_Keycode CircleKey = SDLK_KP_6;
+    constexpr SDL_Keycode SquareKey = SDLK_KP_4;
+    constexpr SDL_Keycode TriangleKey = SDLK_KP_8;
+#endif
+
     u32 button = 0;
     Input::Axis axis = Input::Axis::AxisMax;
     int axisvalue = 0;
@@ -115,16 +138,16 @@ void WindowSDL::onKeyPress(const SDL_Event* event) {
     case SDLK_RIGHT:
         button = OrbisPadButtonDataOffset::ORBIS_PAD_BUTTON_RIGHT;
         break;
-    case SDLK_KP_8:
+    case TriangleKey:
         button = OrbisPadButtonDataOffset::ORBIS_PAD_BUTTON_TRIANGLE;
         break;
-    case SDLK_KP_6:
+    case CircleKey:
         button = OrbisPadButtonDataOffset::ORBIS_PAD_BUTTON_CIRCLE;
         break;
-    case SDLK_KP_2:
+    case CrossKey:
         button = OrbisPadButtonDataOffset::ORBIS_PAD_BUTTON_CROSS;
         break;
-    case SDLK_KP_4:
+    case SquareKey:
         button = OrbisPadButtonDataOffset::ORBIS_PAD_BUTTON_SQUARE;
         break;
     case SDLK_RETURN:
@@ -158,6 +181,11 @@ void WindowSDL::onKeyPress(const SDL_Event* event) {
         ax = Input::GetAxis(-0x80, 0x80, axisvalue);
         break;
     case SDLK_S:
+        if (event->key.mod == SDL_KMOD_LCTRL) {
+            // Trigger rdoc capture
+            VideoCore::TriggerCapture();
+            break;
+        }
         axis = Input::Axis::LeftY;
         if (event->type == SDL_EVENT_KEY_DOWN) {
             axisvalue += 127;

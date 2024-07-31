@@ -404,8 +404,9 @@ struct PM4CmdWaitRegMem {
     u32 mask;
     u32 poll_interval;
 
-    u32* Address() const {
-        return reinterpret_cast<u32*>((uintptr_t(poll_addr_hi) << 32) | poll_addr_lo);
+    template <typename T = u32*>
+    T Address() const {
+        return reinterpret_cast<T>((uintptr_t(poll_addr_hi) << 32) | poll_addr_lo);
     }
 
     bool Test() const {
@@ -460,12 +461,12 @@ struct PM4CmdWriteData {
 
     template <typename T>
     void Address(T addr) {
-        addr64 = reinterpret_cast<u64>(addr);
+        addr64 = static_cast<u64>(addr);
     }
 
     template <typename T>
-    T* Address() const {
-        return reinterpret_cast<T*>(addr64);
+    T Address() const {
+        return reinterpret_cast<T>(addr64);
     }
 };
 
@@ -494,8 +495,9 @@ struct PM4CmdEventWriteEos {
         BitField<16, 16, u32> size; ///< Number of DWs to read from the GDS
     };
 
-    u32* Address() const {
-        return reinterpret_cast<u32*>(address_lo | u64(address_hi) << 32);
+    template <typename T = u32*>
+    T Address() const {
+        return reinterpret_cast<T>(address_lo | u64(address_hi) << 32);
     }
 
     u32 DataDWord() const {

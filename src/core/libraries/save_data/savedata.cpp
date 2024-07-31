@@ -15,7 +15,8 @@
 #include "error_codes.h"
 
 namespace Libraries::SaveData {
-static std::string g_mount_point = "/savedata0"; // temp mount point (todo)
+bool is_rw_mode = false;
+static constexpr std::string_view g_mount_point = "/savedata0"; // temp mount point (todo)
 std::string game_serial;
 
 int PS4_SYSV_ABI sceSaveDataAbort() {
@@ -50,11 +51,11 @@ int PS4_SYSV_ABI sceSaveDataChangeInternal() {
 
 int PS4_SYSV_ABI sceSaveDataCheckBackupData(const OrbisSaveDataCheckBackupData* check) {
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    std::string mount_dir = mnt->GetHostFile(check->dirName->data);
+    const auto mount_dir = mnt->GetHostPath(check->dirName->data);
     if (!std::filesystem::exists(mount_dir)) {
         return ORBIS_SAVE_DATA_ERROR_NOT_FOUND;
     }
-    LOG_INFO(Lib_SaveData, "called = {}", mount_dir);
+    LOG_INFO(Lib_SaveData, "called = {}", mount_dir.string());
 
     return ORBIS_OK;
 }
@@ -177,12 +178,43 @@ int PS4_SYSV_ABI sceSaveDataDeleteUser() {
 
 int PS4_SYSV_ABI sceSaveDataDirNameSearch(const OrbisSaveDataDirNameSearchCond* cond,
                                           OrbisSaveDataDirNameSearchResult* result) {
-    if (cond == nullptr || cond->dirName == nullptr)
+    if (cond == nullptr)
         return ORBIS_SAVE_DATA_ERROR_PARAMETER;
-    LOG_ERROR(Lib_SaveData,
-              "TODO sceSaveDataDirNameSearch: search_dir_name = {}, key = {}, result = {}",
-              cond->dirName->data, (int)cond->key, (result->infos == nullptr));
-
+    LOG_INFO(Lib_SaveData, "called");
+    const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
+                            std::to_string(cond->userId) / game_serial;
+    if (!mount_dir.empty() && std::filesystem::exists(mount_dir)) {
+        if (cond->dirName == nullptr || std::string_view(cond->dirName->data)
+                                            .empty()) { // look for all dirs if no dir is provided.
+            for (int i = 0; const auto& entry : std::filesystem::directory_iterator(mount_dir)) {
+                if (std::filesystem::is_directory(entry.path()) &&
+                    entry.path().filename().string() != "sdmemory") {
+                    // sceSaveDataDirNameSearch does not search for dataMemory1/2 dirs.
+                    // copy dir name to be used by sceSaveDataMount in read mode.
+                    strncpy(result->dirNames[i].data, entry.path().filename().string().c_str(), 32);
+                    i++;
+                    result->hitNum = i;
+                    result->dirNamesNum = i;
+                    result->setNum = i;
+                }
+            }
+        } else { // Need a game to test.
+            LOG_ERROR(Lib_SaveData, "Check Me. sceSaveDataDirNameSearch: dirName = {}",
+                      cond->dirName->data);
+            strncpy(result->dirNames[0].data, cond->dirName->data, 32);
+            result->hitNum = 1;
+            result->dirNamesNum = 1;
+            result->setNum = 1;
+        }
+    } else {
+        result->hitNum = 0;
+        result->dirNamesNum = 0;
+        result->setNum = 0;
+    }
+    if (result->infos != nullptr) {
+        result->infos->blocks = ORBIS_SAVE_DATA_BLOCK_SIZE;
+        result->infos->freeBlocks = ORBIS_SAVE_DATA_BLOCK_SIZE;
+    }
     return ORBIS_OK;
 }
 
@@ -275,8 +307,51 @@ int PS4_SYSV_ABI sceSaveDataGetMountInfo(const OrbisSaveDataMountPoint* mountPoi
     return ORBIS_OK;
 }
 
-int PS4_SYSV_ABI sceSaveDataGetParam() {
-    LOG_ERROR(Lib_SaveData, "(STUBBED) called");
+int PS4_SYSV_ABI sceSaveDataGetParam(const OrbisSaveDataMountPoint* mountPoint,
+                                     const OrbisSaveDataParamType paramType, void* paramBuf,
+                                     const size_t paramBufSize, size_t* gotSize) {
+
+    if (mountPoint == nullptr)
+        return ORBIS_SAVE_DATA_ERROR_PARAMETER;
+
+    auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
+    const auto mount_dir = mnt->GetHostPath(mountPoint->data);
+    Common::FS::IOFile file(mount_dir / "param.txt", Common::FS::FileAccessMode::Read);
+    OrbisSaveDataParam params;
+    file.Read(params);
+
+    LOG_INFO(Lib_SaveData, "called");
+
+    switch (paramType) {
+    case ORBIS_SAVE_DATA_PARAM_TYPE_ALL: {
+        memcpy(paramBuf, &params, sizeof(OrbisSaveDataParam));
+        *gotSize = sizeof(OrbisSaveDataParam);
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_TITLE: {
+        std::memcpy(paramBuf, &params.title, ORBIS_SAVE_DATA_TITLE_MAXSIZE);
+        *gotSize = ORBIS_SAVE_DATA_TITLE_MAXSIZE;
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_SUB_TITLE: {
+        std::memcpy(paramBuf, &params.subTitle, ORBIS_SAVE_DATA_SUBTITLE_MAXSIZE);
+        *gotSize = ORBIS_SAVE_DATA_SUBTITLE_MAXSIZE;
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_DETAIL: {
+        std::memcpy(paramBuf, &params.detail, ORBIS_SAVE_DATA_DETAIL_MAXSIZE);
+        *gotSize = ORBIS_SAVE_DATA_DETAIL_MAXSIZE;
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_USER_PARAM: {
+        std::memcpy(paramBuf, &params.userParam, sizeof(u32));
+        *gotSize = sizeof(u32);
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_MTIME: {
+        std::memcpy(paramBuf, &params.mtime, sizeof(time_t));
+        *gotSize = sizeof(time_t);
+    } break;
+    default: {
+        UNREACHABLE_MSG("Unknown Param = {}", paramType);
+    } break;
+    }
+
     return ORBIS_OK;
 }
 
@@ -293,7 +368,7 @@ int PS4_SYSV_ABI sceSaveDataGetSaveDataCount() {
 int PS4_SYSV_ABI sceSaveDataGetSaveDataMemory(const u32 userId, void* buf, const size_t bufSize,
                                               const int64_t offset) {
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
-                            std::to_string(userId) / game_serial / "save_mem1.sav";
+                            std::to_string(userId) / game_serial / "sdmemory/save_mem1.sav";
 
     Common::FS::IOFile file(mount_dir, Common::FS::FileAccessMode::Read);
     if (!file.IsOpen()) {
@@ -308,7 +383,7 @@ int PS4_SYSV_ABI sceSaveDataGetSaveDataMemory(const u32 userId, void* buf, const
 
 int PS4_SYSV_ABI sceSaveDataGetSaveDataMemory2(OrbisSaveDataMemoryGet2* getParam) {
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
-                            std::to_string(getParam->userId) / game_serial;
+                            std::to_string(getParam->userId) / game_serial / "sdmemory";
     if (getParam == nullptr)
         return ORBIS_SAVE_DATA_ERROR_PARAMETER;
     if (getParam->data != nullptr) {
@@ -317,14 +392,14 @@ int PS4_SYSV_ABI sceSaveDataGetSaveDataMemory2(OrbisSaveDataMemoryGet2* getParam
             return false;
         }
         file.Seek(getParam->data->offset);
-        size_t nbytes = file.ReadRaw<u8>(getParam->data->buf, getParam->data->bufSize);
+        file.ReadRaw<u8>(getParam->data->buf, getParam->data->bufSize);
         LOG_INFO(Lib_SaveData, "called: bufSize = {}, offset = {}", getParam->data->bufSize,
                  getParam->data->offset);
     }
 
     if (getParam->param != nullptr) {
-        Common::FS::IOFile file1(mount_dir / "param.txt", Common::FS::FileAccessMode::Read);
-        size_t nbytes = file1.ReadRaw<u8>(getParam->param, sizeof(OrbisSaveDataParam));
+        Common::FS::IOFile file(mount_dir / "param.txt", Common::FS::FileAccessMode::Read);
+        file.ReadRaw<u8>(getParam->param, sizeof(OrbisSaveDataParam));
     }
 
     return ORBIS_OK;
@@ -394,13 +469,13 @@ int PS4_SYSV_ABI sceSaveDataIsMounted() {
 int PS4_SYSV_ABI sceSaveDataLoadIcon(const OrbisSaveDataMountPoint* mountPoint,
                                      OrbisSaveDataIcon* icon) {
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    std::string mount_dir = mnt->GetHostFile(mountPoint->data);
-    LOG_INFO(Lib_SaveData, "called: dir = {}", mount_dir);
+    const auto mount_dir = mnt->GetHostPath(mountPoint->data);
+    LOG_INFO(Lib_SaveData, "called: dir = {}", mount_dir.string());
 
     if (icon != nullptr) {
-        Common::FS::IOFile file(mount_dir + "/save_data.png", Common::FS::FileAccessMode::Read);
+        Common::FS::IOFile file(mount_dir / "save_data.png", Common::FS::FileAccessMode::Read);
         icon->bufSize = file.GetSize();
-        size_t nbytes = file.ReadRaw<u8>(icon->buf, icon->bufSize);
+        file.ReadRaw<u8>(icon->buf, icon->bufSize);
     }
     return ORBIS_OK;
 }
@@ -409,17 +484,18 @@ s32 saveDataMount(u32 user_id, char* dir_name, u32 mount_mode,
                   OrbisSaveDataMountResult* mount_result) {
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
                             std::to_string(user_id) / game_serial / dir_name;
+    auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
     switch (mount_mode) {
     case ORBIS_SAVE_DATA_MOUNT_MODE_RDONLY:
     case ORBIS_SAVE_DATA_MOUNT_MODE_RDWR:
     case ORBIS_SAVE_DATA_MOUNT_MODE_RDWR | ORBIS_SAVE_DATA_MOUNT_MODE_DESTRUCT_OFF:
     case ORBIS_SAVE_DATA_MOUNT_MODE_RDONLY | ORBIS_SAVE_DATA_MOUNT_MODE_DESTRUCT_OFF: {
+        is_rw_mode = (mount_mode == ORBIS_SAVE_DATA_MOUNT_MODE_RDWR) ? true : false;
         if (!std::filesystem::exists(mount_dir)) {
             return ORBIS_SAVE_DATA_ERROR_NOT_FOUND;
         }
-        auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
         mount_result->mount_status = 0;
-        std::strncpy(mount_result->mount_point.data, g_mount_point.c_str(), 16);
+        g_mount_point.copy(mount_result->mount_point.data, 16);
         mnt->Mount(mount_dir, mount_result->mount_point.data);
     } break;
     case ORBIS_SAVE_DATA_MOUNT_MODE_CREATE:
@@ -431,16 +507,11 @@ s32 saveDataMount(u32 user_id, char* dir_name, u32 mount_mode,
         ORBIS_SAVE_DATA_MOUNT_MODE_COPY_ICON:
     case ORBIS_SAVE_DATA_MOUNT_MODE_CREATE | ORBIS_SAVE_DATA_MOUNT_MODE_DESTRUCT_OFF |
         ORBIS_SAVE_DATA_MOUNT_MODE_COPY_ICON: {
-        auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
         if (std::filesystem::exists(mount_dir)) {
-            std::strncpy(mount_result->mount_point.data, g_mount_point.c_str(), 16);
-            mnt->Mount(mount_dir, mount_result->mount_point.data);
-            mount_result->required_blocks = 0;
-            mount_result->mount_status = 0;
             return ORBIS_SAVE_DATA_ERROR_EXISTS;
         }
         if (std::filesystem::create_directories(mount_dir)) {
-            std::strncpy(mount_result->mount_point.data, g_mount_point.c_str(), 16);
+            g_mount_point.copy(mount_result->mount_point.data, 16);
             mnt->Mount(mount_dir, mount_result->mount_point.data);
             mount_result->mount_status = 1;
         }
@@ -451,13 +522,12 @@ s32 saveDataMount(u32 user_id, char* dir_name, u32 mount_mode,
         if (!std::filesystem::exists(mount_dir)) {
             std::filesystem::create_directories(mount_dir);
         }
-        auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-        std::strncpy(mount_result->mount_point.data, g_mount_point.c_str(), 16);
+        g_mount_point.copy(mount_result->mount_point.data, 16);
         mnt->Mount(mount_dir, mount_result->mount_point.data);
         mount_result->mount_status = 1;
     } break;
     default:
-        UNREACHABLE();
+        UNREACHABLE_MSG("Unknown mount mode = {}", mount_mode);
     }
     mount_result->required_blocks = 0;
 
@@ -534,12 +604,12 @@ int PS4_SYSV_ABI sceSaveDataRestoreLoadSaveDataMemory() {
 int PS4_SYSV_ABI sceSaveDataSaveIcon(const OrbisSaveDataMountPoint* mountPoint,
                                      const OrbisSaveDataIcon* icon) {
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    std::string mount_dir = mnt->GetHostFile(mountPoint->data);
-    LOG_INFO(Lib_SaveData, "called = {}", mount_dir);
+    const auto mount_dir = mnt->GetHostPath(mountPoint->data);
+    LOG_INFO(Lib_SaveData, "called = {}", mount_dir.string());
 
     if (icon != nullptr) {
-        Common::FS::IOFile file(mount_dir + "/save_data.png", Common::FS::FileAccessMode::Write);
-        file.WriteRaw<u8>((void*)icon->buf, icon->bufSize);
+        Common::FS::IOFile file(mount_dir / "save_data.png", Common::FS::FileAccessMode::Write);
+        file.WriteRaw<u8>(icon->buf, icon->bufSize);
     }
     return ORBIS_OK;
 }
@@ -557,14 +627,46 @@ int PS4_SYSV_ABI sceSaveDataSetEventInfo() {
 int PS4_SYSV_ABI sceSaveDataSetParam(const OrbisSaveDataMountPoint* mountPoint,
                                      OrbisSaveDataParamType paramType, const void* paramBuf,
                                      size_t paramBufSize) {
-    auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    std::string mount_dir = mnt->GetHostFile(mountPoint->data);
-    LOG_INFO(Lib_SaveData, "called = {}, mountPoint->data = {}", mount_dir, mountPoint->data);
+    if (paramBuf == nullptr)
+        return ORBIS_SAVE_DATA_ERROR_PARAMETER;
 
-    if (paramBuf != nullptr) {
-        Common::FS::IOFile file(mount_dir + "/param.txt", Common::FS::FileAccessMode::Write);
-        file.WriteRaw<u8>((void*)paramBuf, paramBufSize);
+    auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
+    const auto mount_dir = mnt->GetHostPath(mountPoint->data) / "param.txt";
+    OrbisSaveDataParam params;
+    if (std::filesystem::exists(mount_dir)) {
+        Common::FS::IOFile file(mount_dir, Common::FS::FileAccessMode::Read);
+        file.ReadRaw<u8>(&params, sizeof(OrbisSaveDataParam));
     }
+
+    LOG_INFO(Lib_SaveData, "called");
+
+    switch (paramType) {
+    case ORBIS_SAVE_DATA_PARAM_TYPE_ALL: {
+        memcpy(&params, paramBuf, sizeof(OrbisSaveDataParam));
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_TITLE: {
+        strncpy(params.title, static_cast<const char*>(paramBuf), paramBufSize);
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_SUB_TITLE: {
+        strncpy(params.subTitle, static_cast<const char*>(paramBuf), paramBufSize);
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_DETAIL: {
+        strncpy(params.detail, static_cast<const char*>(paramBuf), paramBufSize);
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_USER_PARAM: {
+        params.userParam = *(static_cast<const u32*>(paramBuf));
+    } break;
+    case ORBIS_SAVE_DATA_PARAM_TYPE_MTIME: {
+        params.mtime = *(static_cast<const time_t*>(paramBuf));
+    } break;
+    default: {
+        UNREACHABLE_MSG("Unknown Param = {}", paramType);
+    }
+    }
+
+    Common::FS::IOFile file(mount_dir, Common::FS::FileAccessMode::Write);
+    file.WriteRaw<u8>(&params, sizeof(OrbisSaveDataParam));
+
     return ORBIS_OK;
 }
 
@@ -577,11 +679,11 @@ int PS4_SYSV_ABI sceSaveDataSetSaveDataMemory(const u32 userId, const void* buf,
                                               const size_t bufSize, const int64_t offset) {
     LOG_INFO(Lib_SaveData, "called");
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
-                            std::to_string(userId) / game_serial / "save_mem1.sav";
+                            std::to_string(userId) / game_serial / "sdmemory/save_mem1.sav";
 
     Common::FS::IOFile file(mount_dir, Common::FS::FileAccessMode::Write);
     file.Seek(offset);
-    file.WriteRaw<u8>((void*)buf, bufSize);
+    file.WriteRaw<u8>(buf, bufSize);
 
     return ORBIS_OK;
 }
@@ -589,13 +691,13 @@ int PS4_SYSV_ABI sceSaveDataSetSaveDataMemory(const u32 userId, const void* buf,
 int PS4_SYSV_ABI sceSaveDataSetSaveDataMemory2(const OrbisSaveDataMemorySet2* setParam) {
     LOG_INFO(Lib_SaveData, "called: dataNum = {}, slotId= {}", setParam->dataNum, setParam->slotId);
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
-                            std::to_string(setParam->userId) / game_serial;
+                            std::to_string(setParam->userId) / game_serial / "sdmemory";
     if (setParam->data != nullptr) {
         Common::FS::IOFile file(mount_dir / "save_mem2.sav", Common::FS::FileAccessMode::Write);
         if (!file.IsOpen())
             return -1;
         file.Seek(setParam->data->offset);
-        file.WriteRaw<u8>((void*)setParam->data->buf, setParam->data->bufSize);
+        file.WriteRaw<u8>(setParam->data->buf, setParam->data->bufSize);
     }
 
     if (setParam->param != nullptr) {
@@ -605,7 +707,7 @@ int PS4_SYSV_ABI sceSaveDataSetSaveDataMemory2(const OrbisSaveDataMemorySet2* se
 
     if (setParam->icon != nullptr) {
         Common::FS::IOFile file(mount_dir / "save_icon.png", Common::FS::FileAccessMode::Write);
-        file.WriteRaw<u8>((void*)setParam->icon->buf, setParam->icon->bufSize);
+        file.WriteRaw<u8>(setParam->icon->buf, setParam->icon->bufSize);
     }
 
     return ORBIS_OK;
@@ -617,7 +719,7 @@ int PS4_SYSV_ABI sceSaveDataSetupSaveDataMemory(u32 userId, size_t memorySize,
     LOG_INFO(Lib_SaveData, "called:userId = {}, memorySize = {}", userId, memorySize);
 
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
-                            std::to_string(userId) / game_serial;
+                            std::to_string(userId) / game_serial / "sdmemory";
 
     if (std::filesystem::exists(mount_dir)) {
         return ORBIS_SAVE_DATA_ERROR_EXISTS;
@@ -636,7 +738,7 @@ int PS4_SYSV_ABI sceSaveDataSetupSaveDataMemory2(const OrbisSaveDataMemorySetup2
     LOG_INFO(Lib_SaveData, "called");
     // if (setupParam->option == 1) { // check this later.
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
-                            std::to_string(setupParam->userId) / game_serial;
+                            std::to_string(setupParam->userId) / game_serial / "sdmemory";
     if (std::filesystem::exists(mount_dir) &&
         std::filesystem::exists(mount_dir / "save_mem2.sav")) {
         Common::FS::IOFile file(mount_dir / "save_mem2.sav", Common::FS::FileAccessMode::Read);
@@ -690,16 +792,17 @@ int PS4_SYSV_ABI sceSaveDataTransferringMount() {
 }
 
 s32 PS4_SYSV_ABI sceSaveDataUmount(const OrbisSaveDataMountPoint* mountPoint) {
+    LOG_INFO(Lib_SaveData, "mountPoint = {}", std::string(mountPoint->data));
     if (std::string(mountPoint->data).empty()) {
         return ORBIS_SAVE_DATA_ERROR_NOT_MOUNTED;
     }
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /
                             std::to_string(1) / game_serial / mountPoint->data;
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-
+    const auto& guest_path = mnt->GetHostPath(mountPoint->data);
+    if (guest_path.empty())
+        return ORBIS_SAVE_DATA_ERROR_NOT_MOUNTED;
     mnt->Unmount(mount_dir, mountPoint->data);
-    LOG_INFO(Lib_SaveData, "mountPoint = {}", std::string(mountPoint->data));
-
     return ORBIS_OK;
 }
 
@@ -709,26 +812,35 @@ int PS4_SYSV_ABI sceSaveDataUmountSys() {
 }
 
 int PS4_SYSV_ABI sceSaveDataUmountWithBackup(const OrbisSaveDataMountPoint* mountPoint) {
-    LOG_ERROR(Lib_SaveData, "called = {}", std::string(mountPoint->data));
+    LOG_INFO(Lib_SaveData, "called mount = {}, is_rw_mode = {}", std::string(mountPoint->data),
+             is_rw_mode);
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    std::string mount_dir = mnt->GetHostFile(mountPoint->data);
+    const auto mount_dir = mnt->GetHostPath(mountPoint->data);
     if (!std::filesystem::exists(mount_dir)) {
         return ORBIS_SAVE_DATA_ERROR_NOT_FOUND;
-    } else {
-        std::filesystem::path mnt_dir(mount_dir);
-        std::filesystem::create_directories(mnt_dir.parent_path() / "backup");
+    }
+    // leave disabled for now. and just unmount.
 
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(mnt_dir)) {
+    /* if (is_rw_mode) { // backup is done only when mount mode is ReadWrite.
+        auto backup_path = mount_dir;
+        std::string save_data_dir = (mount_dir.string() + "_backup");
+        backup_path.replace_filename(save_data_dir);
+
+        std::filesystem::create_directories(backup_path);
+
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(mount_dir)) {
             const auto& path = entry.path();
-            std::filesystem::path target_path = mnt_dir.parent_path() / "backup";
-
             if (std::filesystem::is_regular_file(path)) {
-                std::filesystem::copy(path, target_path,
+                std::filesystem::copy(path, save_data_dir,
                                       std::filesystem::copy_options::overwrite_existing);
             }
         }
-        mnt->Unmount(mount_dir, mountPoint->data);
-    }
+    }*/
+    const auto& guest_path = mnt->GetHostPath(mountPoint->data);
+    if (guest_path.empty())
+        return ORBIS_SAVE_DATA_ERROR_NOT_MOUNTED;
+
+    mnt->Unmount(mount_dir, mountPoint->data);
     return ORBIS_OK;
 }
 

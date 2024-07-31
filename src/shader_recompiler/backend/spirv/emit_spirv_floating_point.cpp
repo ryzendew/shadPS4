@@ -100,11 +100,11 @@ Id EmitFPNeg64(EmitContext& ctx, Id value) {
 }
 
 Id EmitFPSin(EmitContext& ctx, Id value) {
-    return ctx.OpSin(ctx.F32[1], value);
+    return ctx.OpSin(ctx.F32[1], ctx.OpFMul(ctx.F32[1], ctx.pi_x2, value));
 }
 
 Id EmitFPCos(EmitContext& ctx, Id value) {
-    return ctx.OpCos(ctx.F32[1], value);
+    return ctx.OpCos(ctx.F32[1], ctx.OpFMul(ctx.F32[1], ctx.pi_x2, value));
 }
 
 Id EmitFPExp2(EmitContext& ctx, Id value) {
@@ -383,6 +383,10 @@ Id EmitFPIsInf32(EmitContext& ctx, Id value) {
 
 Id EmitFPIsInf64(EmitContext& ctx, Id value) {
     return ctx.OpIsInf(ctx.U1[1], value);
+}
+
+void EmitFPCmpClass32(EmitContext&) {
+    UNREACHABLE();
 }
 
 } // namespace Shader::Backend::SPIRV

@@ -13,7 +13,7 @@
 
 namespace Libraries::Kernel {
 
-std::vector<Core::FileSys::DirEntry> GetDirectoryEntries(const std::string& path) {
+std::vector<Core::FileSys::DirEntry> GetDirectoryEntries(const std::filesystem::path& path) {
     std::vector<Core::FileSys::DirEntry> files;
     for (const auto& entry : std::filesystem::directory_iterator(path)) {
         auto& dir_entry = files.emplace_back();
@@ -53,12 +53,15 @@ int PS4_SYSV_ABI sceKernelOpen(const char* path, int flags, u16 mode) {
     if (std::string_view{path} == "/dev/stdout") {
         return 2002;
     }
+    if (std::string_view{path} == "/dev/urandom") {
+        return 2003;
+    }
     u32 handle = h->CreateHandle();
     auto* file = h->GetFile(handle);
     if (directory) {
         file->is_directory = true;
         file->m_guest_name = path;
-        file->m_host_name = mnt->GetHostDirectory(file->m_guest_name);
+        file->m_host_name = mnt->GetHostPath(file->m_guest_name);
         if (!std::filesystem::is_directory(file->m_host_name)) { // directory doesn't exist
             h->DeleteHandle(handle);
             return ORBIS_KERNEL_ERROR_ENOTDIR;
@@ -72,7 +75,7 @@ int PS4_SYSV_ABI sceKernelOpen(const char* path, int flags, u16 mode) {
         }
     } else {
         file->m_guest_name = path;
-        file->m_host_name = mnt->GetHostFile(file->m_guest_name);
+        file->m_host_name = mnt->GetHostPath(file->m_guest_name);
         int e = 0;
         if (read) {
             e = file->f.Open(file->m_host_name, Common::FS::FileAccessMode::Read);
@@ -112,6 +115,9 @@ int PS4_SYSV_ABI posix_open(const char* path, int flags, /* SceKernelMode*/ u16 
 int PS4_SYSV_ABI sceKernelClose(int d) {
     if (d < 3) { // d probably hold an error code
         return ORBIS_KERNEL_ERROR_EPERM;
+    }
+    if (d == 2003) { // dev/urandom case
+        return SCE_OK;
     }
     auto* h = Common::Singleton<Core::FileSys::HandleTable>::Instance();
     auto* file = h->GetFile(d);
@@ -165,8 +171,7 @@ int PS4_SYSV_ABI sceKernelUnlink(const char* path) {
     auto* h = Common::Singleton<Core::FileSys::HandleTable>::Instance();
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
 
-    std::string host_path = mnt->GetHostFile(path);
-
+    const auto host_path = mnt->GetHostPath(path);
     if (host_path.empty()) {
         return SCE_KERNEL_ERROR_EACCES;
     }
@@ -175,7 +180,7 @@ int PS4_SYSV_ABI sceKernelUnlink(const char* path) {
         return SCE_KERNEL_ERROR_EPERM;
     }
 
-    auto* file = h->getFile(host_path);
+    auto* file = h->GetFile(host_path);
     if (file != nullptr) {
         file->f.Unlink();
     }
@@ -224,6 +229,13 @@ s64 PS4_SYSV_ABI posix_lseek(int d, s64 offset, int whence) {
 }
 
 s64 PS4_SYSV_ABI sceKernelRead(int d, void* buf, size_t nbytes) {
+    if (d == 2003) // dev urandom case
+    {
+        auto rbuf = static_cast<char*>(buf);
+        for (size_t i = 0; i < nbytes; i++)
+            rbuf[i] = std::rand() & 0xFF;
+        return nbytes;
+    }
     auto* h = Common::Singleton<Core::FileSys::HandleTable>::Instance();
     auto* file = h->GetFile(d);
     if (file == nullptr) {
@@ -250,7 +262,7 @@ int PS4_SYSV_ABI sceKernelMkdir(const char* path, u16 mode) {
         return SCE_KERNEL_ERROR_EINVAL;
     }
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    std::string dir_name = mnt->GetHostFile(path);
+    const auto dir_name = mnt->GetHostPath(path);
     if (std::filesystem::exists(dir_name)) {
         return SCE_KERNEL_ERROR_EEXIST;
     }
@@ -279,7 +291,7 @@ int PS4_SYSV_ABI posix_mkdir(const char* path, u16 mode) {
 int PS4_SYSV_ABI sceKernelStat(const char* path, OrbisKernelStat* sb) {
     LOG_INFO(Kernel_Fs, "(PARTIAL) path = {}", path);
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    const auto& path_name = mnt->GetHostFile(path);
+    const auto path_name = mnt->GetHostPath(path);
     std::memset(sb, 0, sizeof(OrbisKernelStat));
     const bool is_dir = std::filesystem::is_directory(path_name);
     const bool is_file = std::filesystem::is_regular_file(path_name);
@@ -314,7 +326,7 @@ int PS4_SYSV_ABI posix_stat(const char* path, OrbisKernelStat* sb) {
 
 int PS4_SYSV_ABI sceKernelCheckReachability(const char* path) {
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
-    std::string path_name = mnt->GetHostFile(path);
+    const auto path_name = mnt->GetHostPath(path);
     if (!std::filesystem::exists(path_name)) {
         return SCE_KERNEL_ERROR_ENOENT;
     }
@@ -460,10 +472,34 @@ s64 PS4_SYSV_ABI sceKernelPwrite(int d, void* buf, size_t nbytes, s64 offset) {
     return file->f.WriteRaw<u8>(buf, nbytes);
 }
 
+s32 PS4_SYSV_ABI sceKernelRename(const char* from, const char* to) {
+    auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
+    const auto src_path = mnt->GetHostPath(from);
+    if (!std::filesystem::exists(src_path)) {
+        return ORBIS_KERNEL_ERROR_ENOENT;
+    }
+    const auto dst_path = mnt->GetHostPath(to);
+    const bool src_is_dir = std::filesystem::is_directory(src_path);
+    const bool dst_is_dir = std::filesystem::is_directory(dst_path);
+    if (src_is_dir && !dst_is_dir) {
+        return ORBIS_KERNEL_ERROR_ENOTDIR;
+    }
+    if (!src_is_dir && dst_is_dir) {
+        return ORBIS_KERNEL_ERROR_EISDIR;
+    }
+    if (dst_is_dir && !std::filesystem::is_empty(dst_path)) {
+        return ORBIS_KERNEL_ERROR_ENOTEMPTY;
+    }
+    std::filesystem::copy(src_path, dst_path, std::filesystem::copy_options::overwrite_existing);
+    return ORBIS_OK;
+}
+
 void fileSystemSymbolsRegister(Core::Loader::SymbolsResolver* sym) {
+    std::srand(std::time(nullptr));
     LIB_FUNCTION("1G3lF1Gg1k8", "libkernel", 1, "libkernel", 1, 1, sceKernelOpen);
     LIB_FUNCTION("wuCroIGjt2g", "libScePosix", 1, "libkernel", 1, 1, posix_open);
     LIB_FUNCTION("UK2Tl2DWUns", "libkernel", 1, "libkernel", 1, 1, sceKernelClose);
+    LIB_FUNCTION("bY-PO6JhzhQ", "libkernel", 1, "libkernel", 1, 1, posix_close);
     LIB_FUNCTION("bY-PO6JhzhQ", "libScePosix", 1, "libkernel", 1, 1, posix_close);
     LIB_FUNCTION("4wSze92BhLI", "libkernel", 1, "libkernel", 1, 1, sceKernelWrite);
 
@@ -479,6 +515,7 @@ void fileSystemSymbolsRegister(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("kBwCPsYX-m4", "libkernel", 1, "libkernel", 1, 1, sceKernelFStat);
     LIB_FUNCTION("mqQMh1zPPT8", "libScePosix", 1, "libkernel", 1, 1, posix_fstat);
     LIB_FUNCTION("VW3TVZiM4-E", "libkernel", 1, "libkernel", 1, 1, sceKernelFtruncate);
+    LIB_FUNCTION("52NcYU9+lEo", "libkernel", 1, "libkernel", 1, 1, sceKernelRename);
 
     LIB_FUNCTION("E6ao34wPw+U", "libScePosix", 1, "libkernel", 1, 1, posix_stat);
     LIB_FUNCTION("+r3rMFwItV4", "libkernel", 1, "libkernel", 1, 1, sceKernelPread);

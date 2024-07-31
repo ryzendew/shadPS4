@@ -6,18 +6,24 @@
 #include <array>
 #include <condition_variable>
 #include <coroutine>
+#include <functional>
 #include <mutex>
 #include <span>
 #include <thread>
 #include <queue>
 #include "common/assert.h"
 #include "common/bit_field.h"
+#include "common/polyfill_thread.h"
 #include "common/types.h"
 #include "video_core/amdgpu/pixel_format.h"
 #include "video_core/amdgpu/resource.h"
 
 namespace Vulkan {
 class Rasterizer;
+}
+
+namespace Libraries::VideoOut {
+struct VideoOutPort;
 }
 
 namespace AmdGpu {
@@ -30,6 +36,7 @@ namespace AmdGpu {
     [[maybe_unused]] std::array<u32, num_words> CONCAT2(pad, __LINE__)
 
 struct Liverpool {
+    static constexpr u32 GfxQueueId = 0u;
     static constexpr u32 NumGfxRings = 1u;     // actually 2, but HP is reserved by system software
     static constexpr u32 NumComputePipes = 7u; // actually 8, but #7 is reserved by system software
     static constexpr u32 NumQueuesPerPipe = 8u;
@@ -80,6 +87,7 @@ struct Liverpool {
         union {
             BitField<0, 6, u64> num_vgprs;
             BitField<6, 4, u64> num_sgprs;
+            BitField<24, 2, u64> vgpr_comp_cnt; // SPI provided per-thread inputs
             BitField<33, 5, u64> num_user_regs;
         } settings;
         UserData user_data;
@@ -320,7 +328,7 @@ struct Liverpool {
 
     struct DepthBuffer {
         enum class ZFormat : u32 {
-            Invald = 0,
+            Invalid = 0,
             Z16 = 1,
             Z32Float = 3,
         };
@@ -366,8 +374,18 @@ struct Liverpool {
             return u64(z_read_base) << 8;
         }
 
-        size_t GetSizeAligned() const {
-            return depth_slice.tile_max * 8;
+        u32 NumSamples() const {
+            return 1u << z_info.num_samples; // spec doesn't say it is a log2
+        }
+
+        u32 NumBits() const {
+            return z_info.format == ZFormat::Z32Float ? 32 : 16;
+        }
+
+        size_t GetDepthSliceSize() const {
+            ASSERT(z_info.format != ZFormat::Invalid);
+            const auto bpe = NumBits() >> 3; // in bytes
+            return (depth_slice.tile_max + 1) * 64 * bpe * NumSamples();
         }
     };
 
@@ -732,12 +750,19 @@ struct Liverpool {
             return VAddr(fmask_base_address) << 8;
         }
 
-        size_t GetSizeAligned() const {
+        u32 NumSamples() const {
+            return 1 << attrib.num_fragments_log2;
+        }
+
+        u32 NumSlices() const {
+            return view.slice_max + 1;
+        }
+
+        size_t GetColorSliceSize() const {
             const auto num_bytes_per_element = NumBits(info.format) / 8u;
-            const auto slice_size = (slice.tile_max + 1) * 64u;
-            const auto total_size = slice_size * (view.slice_max + 1) * num_bytes_per_element;
-            ASSERT(total_size > 0);
-            return total_size;
+            const auto slice_size =
+                num_bytes_per_element * (slice.tile_max + 1) * 64u * NumSamples();
+            return slice_size;
         }
 
         TilingMode GetTilingMode() const {
@@ -785,6 +810,14 @@ struct Liverpool {
         CbColor5Base = 0xA363,
         CbColor6Base = 0xA372,
         CbColor7Base = 0xA381,
+        CbColor0Cmask = 0xA31F,
+        CbColor1Cmask = 0xA32E,
+        CbColor2Cmask = 0xA33D,
+        CbColor3Cmask = 0xA34C,
+        CbColor4Cmask = 0xA35B,
+        CbColor5Cmask = 0xA36A,
+        CbColor6Cmask = 0xA379,
+        CbColor7Cmask = 0xA388,
     };
 
     struct PolygonOffset {
@@ -810,6 +843,17 @@ struct Liverpool {
         BitField<6, 1, u32> depth_compress_disable;
     };
 
+    union DepthView {
+        BitField<0, 11, u32> slice_start;
+        BitField<13, 11, u32> slice_max;
+        BitField<24, 1, u32> z_read_only;
+        BitField<25, 1, u32> stencil_read_only;
+
+        u32 NumSlices() const {
+            return slice_max + 1u;
+        }
+    };
+
     union AaConfig {
         BitField<0, 3, u32> msaa_num_samples;
         BitField<4, 1, u32> aa_mask_centroid_dtmn;
@@ -828,11 +872,21 @@ struct Liverpool {
             ShaderProgram ps_program;
             INSERT_PADDING_WORDS(0x2C);
             ShaderProgram vs_program;
-            INSERT_PADDING_WORDS(0x2E00 - 0x2C4C - 16);
+            INSERT_PADDING_WORDS(0x2C);
+            ShaderProgram gs_program;
+            INSERT_PADDING_WORDS(0x2C);
+            ShaderProgram es_program;
+            INSERT_PADDING_WORDS(0x2C);
+            ShaderProgram hs_program;
+            INSERT_PADDING_WORDS(0x2C);
+            ShaderProgram ls_program;
+            INSERT_PADDING_WORDS(0xA4);
             ComputeProgram cs_program;
             INSERT_PADDING_WORDS(0xA008 - 0x2E00 - 80 - 3 - 5);
             DepthRenderControl depth_render_control;
-            INSERT_PADDING_WORDS(4);
+            INSERT_PADDING_WORDS(1);
+            DepthView depth_view;
+            INSERT_PADDING_WORDS(2);
             Address depth_htile_data_base;
             INSERT_PADDING_WORDS(2);
             float depth_bounds_min;
@@ -907,12 +961,19 @@ struct Liverpool {
         const ShaderProgram* ProgramForStage(u32 index) const {
             switch (index) {
             case 0:
-                return &vs_program;
-            case 4:
                 return &ps_program;
-            default:
-                return nullptr;
+            case 1:
+                return &vs_program;
+            case 2:
+                return &gs_program;
+            case 3:
+                return &es_program;
+            case 4:
+                return &hs_program;
+            case 5:
+                return &ls_program;
             }
+            return nullptr;
         }
     };
 
@@ -940,8 +1001,23 @@ public:
     void SubmitGfx(std::span<const u32> dcb, std::span<const u32> ccb);
     void SubmitAsc(u32 vqid, std::span<const u32> acb);
 
+    void SubmitDone() noexcept {
+        std::scoped_lock lk{submit_mutex};
+        submit_done = true;
+        submit_cv.notify_one();
+    }
+
+    void WaitGpuIdle() noexcept {
+        std::unique_lock lk{submit_mutex};
+        submit_cv.wait(lk, [this] { return num_submits == 0; });
+    }
+
     bool IsGpuIdle() const {
         return num_submits == 0;
+    }
+
+    void SetVoPort(Libraries::VideoOut::VideoOutPort* port) {
+        vo_port = port;
     }
 
     void BindRasterizer(Vulkan::Rasterizer* rasterizer_) {
@@ -979,13 +1055,14 @@ private:
 
     Task ProcessGraphics(std::span<const u32> dcb, std::span<const u32> ccb);
     Task ProcessCeUpdate(std::span<const u32> ccb);
-    Task ProcessCompute(std::span<const u32> acb);
+    Task ProcessCompute(std::span<const u32> acb, int vqid);
 
     void Process(std::stop_token stoken);
 
     struct GpuQueue {
         std::mutex m_access{};
         std::queue<Task::Handle> submits{};
+        ComputeProgram cs_state{};
     };
     std::array<GpuQueue, NumTotalQueues> mapped_queues{};
 
@@ -1008,8 +1085,10 @@ private:
     } cblock{};
 
     Vulkan::Rasterizer* rasterizer{};
+    Libraries::VideoOut::VideoOutPort* vo_port{};
     std::jthread process_thread{};
-    u32 num_submits{};
+    std::atomic<u32> num_submits{};
+    std::atomic<bool> submit_done{};
     std::mutex submit_mutex;
     std::condition_variable_any submit_cv;
 };
@@ -1017,11 +1096,16 @@ private:
 static_assert(GFX6_3D_REG_INDEX(ps_program) == 0x2C08);
 static_assert(GFX6_3D_REG_INDEX(vs_program) == 0x2C48);
 static_assert(GFX6_3D_REG_INDEX(vs_program.user_data) == 0x2C4C);
+static_assert(GFX6_3D_REG_INDEX(gs_program) == 0x2C88);
+static_assert(GFX6_3D_REG_INDEX(es_program) == 0x2CC8);
+static_assert(GFX6_3D_REG_INDEX(hs_program) == 0x2D08);
+static_assert(GFX6_3D_REG_INDEX(ls_program) == 0x2D48);
 static_assert(GFX6_3D_REG_INDEX(cs_program) == 0x2E00);
 static_assert(GFX6_3D_REG_INDEX(cs_program.dim_z) == 0x2E03);
 static_assert(GFX6_3D_REG_INDEX(cs_program.address_lo) == 0x2E0C);
 static_assert(GFX6_3D_REG_INDEX(cs_program.user_data) == 0x2E40);
 static_assert(GFX6_3D_REG_INDEX(depth_render_control) == 0xA000);
+static_assert(GFX6_3D_REG_INDEX(depth_view) == 0xA002);
 static_assert(GFX6_3D_REG_INDEX(depth_htile_data_base) == 0xA005);
 static_assert(GFX6_3D_REG_INDEX(screen_scissor) == 0xA00C);
 static_assert(GFX6_3D_REG_INDEX(depth_buffer.z_info) == 0xA010);

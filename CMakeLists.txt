@@ -6,6 +6,11 @@ cmake_minimum_required(VERSION 3.16.3)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+if(APPLE)
+    enable_language(OBJC)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET 11)
+endif()
+
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -14,12 +19,11 @@ project(shadPS4)
 
 option(ENABLE_QT_GUI "Enable the Qt GUI. If not selected then the emulator uses a minimal SDL-based UI instead" OFF)
 
-# This function should be passed a list of all files in a target. It will automatically generate
-# file groups following the directory hierarchy, so that the layout of the files in IDEs matches the
-# one in the filesystem.
+# This function should be passed a list of all files in a target. It will automatically generate file groups
+# following the directory hierarchy, so that the layout of the files in IDEs matches the one in the filesystem.
 function(create_target_directory_groups target_name)
-    # Place any files that aren't in the source list in a separate group so that they don't get in
-    # the way.
+
+    # Place any files that aren't in the source list in a separate group so that they don't get in the way.
     source_group("Other Files" REGULAR_EXPRESSION ".")
 
     get_target_property(target_sources "${target_name}" SOURCES)
@@ -34,14 +38,6 @@ endfunction()
 
 # Setup a custom clang-format target (if clang-format can be found) that will run
 # against all the src files. This should be used before making a pull request.
-# =======================================================================
-
-set(CLANG_FORMAT_POSTFIX "-17")
-find_program(CLANG_FORMAT
-    NAMES clang-format${CLANG_FORMAT_POSTFIX}
-          clang-format
-    PATHS ${PROJECT_BINARY_DIR}/externals)
-
 if (CLANG_FORMAT)
     set(SRCS ${PROJECT_SOURCE_DIR}/src)
     set(CCOMMENT "Running clang format against all the .h and .cpp files in src/")
@@ -74,6 +70,22 @@ find_package(xbyak 7.07 CONFIG)
 find_package(xxHash 0.8.2 MODULE)
 find_package(zlib-ng 2.2.0 MODULE)
 find_package(Zydis 4.1.0 CONFIG)
+find_package(RenderDoc MODULE)
+
+if (APPLE)
+    find_package(date 3.0.1 CONFIG)
+endif()
+
+# Note: Windows always has these functions through winpthreads
+include(CheckSymbolExists)
+check_symbol_exists(pthread_mutex_timedlock "pthread.h" HAVE_PTHREAD_MUTEX_TIMEDLOCK)
+if(HAVE_PTHREAD_MUTEX_TIMEDLOCK OR WIN32)
+    add_compile_options(-DHAVE_PTHREAD_MUTEX_TIMEDLOCK)
+endif()
+check_symbol_exists(sem_timedwait "semaphore.h" HAVE_SEM_TIMEDWAIT)
+if(HAVE_SEM_TIMEDWAIT OR WIN32)
+    add_compile_options(-DHAVE_SEM_TIMEDWAIT)
+endif()
 
 add_subdirectory(externals)
 include_directories(src)
@@ -210,6 +222,10 @@ set(PLAYGO_LIB src/core/libraries/playgo/playgo.cpp
                src/core/libraries/playgo/playgo_types.h
 )
 
+set(RANDOM_LIB src/core/libraries/random/random.cpp
+               src/core/libraries/random/random.h
+)
+
 set(USBD_LIB src/core/libraries/usbd/usbd.cpp
              src/core/libraries/usbd/usbd.h
 )
@@ -280,6 +296,8 @@ set(CORE src/core/aerolib/stubs.cpp
          src/core/aerolib/aerolib.h
          src/core/address_space.cpp
          src/core/address_space.h
+         src/core/cpu_patches.cpp
+         src/core/cpu_patches.h
          src/core/crypto/crypto.cpp
          src/core/crypto/crypto.h 
          src/core/crypto/keys.h
@@ -290,12 +308,14 @@ set(CORE src/core/aerolib/stubs.cpp
          src/core/file_format/pkg_type.h
          src/core/file_format/psf.cpp
          src/core/file_format/psf.h
+         src/core/file_format/playgo_chunk.cpp
+         src/core/file_format/playgo_chunk.h
          src/core/file_format/trp.cpp
          src/core/file_format/trp.h
          src/core/file_format/splash.h
          src/core/file_format/splash.cpp
          src/core/file_sys/fs.cpp
-         src/core/file_sys/fs.h  
+         src/core/file_sys/fs.h
          src/core/loader.cpp
          src/core/loader.h
          src/core/loader/dwarf.cpp
@@ -318,6 +338,7 @@ set(CORE src/core/aerolib/stubs.cpp
          ${NP_LIBS}
          ${PNG_LIB}
          ${PLAYGO_LIB}
+         ${RANDOM_LIB}
          ${USBD_LIB}
          ${MISC_LIBS}
          ${DIALOGS_LIB}
@@ -453,6 +474,8 @@ set(VIDEO_CORE src/video_core/amdgpu/liverpool.cpp
                src/video_core/renderer_vulkan/vk_swapchain.h
                src/video_core/texture_cache/image.cpp
                src/video_core/texture_cache/image.h
+               src/video_core/texture_cache/image_info.cpp
+               src/video_core/texture_cache/image_info.h
                src/video_core/texture_cache/image_view.cpp
                src/video_core/texture_cache/image_view.h
                src/video_core/texture_cache/sampler.cpp
@@ -462,6 +485,8 @@ set(VIDEO_CORE src/video_core/amdgpu/liverpool.cpp
                src/video_core/texture_cache/tile_manager.cpp
                src/video_core/texture_cache/tile_manager.h
                src/video_core/texture_cache/types.h
+               src/video_core/renderdoc.cpp
+               src/video_core/renderdoc.h
 )
 
 set(INPUT src/input/controller.cpp
@@ -474,7 +499,7 @@ set(EMULATOR src/emulator.cpp
              src/sdl_window.cpp
 )
 
-# the above is shared in sdl and qt version (TODO share them all)
+# The above is shared in SDL and Qt version (TODO share them all)
 
 if(ENABLE_QT_GUI)
 qt_add_resources(RESOURCE_FILES src/shadps4.qrc)
@@ -537,8 +562,20 @@ endif()
 
 create_target_directory_groups(shadps4)
 
-target_link_libraries(shadps4 PRIVATE magic_enum::magic_enum fmt::fmt toml11::toml11 tsl::robin_map xbyak::xbyak Tracy::TracyClient)
+target_link_libraries(shadps4 PRIVATE magic_enum::magic_enum fmt::fmt toml11::toml11 tsl::robin_map xbyak::xbyak Tracy::TracyClient RenderDoc::API)
 target_link_libraries(shadps4 PRIVATE Boost::headers GPUOpen::VulkanMemoryAllocator sirit Vulkan::Headers xxHash::xxhash Zydis::Zydis glslang::SPIRV glslang::glslang SDL3::SDL3)
+
+if (APPLE)
+  # Reserve system-managed memory space.
+  target_link_options(shadps4 PRIVATE -Wl,-no_pie,-no_fixup_chains,-no_huge,-pagezero_size,0x400000,-segaddr,GUEST_SYSTEM,0x400000,-image_base,0x10000000000)
+
+  # Link MoltenVK for Vulkan support
+  find_library(MOLTENVK MoltenVK REQUIRED)
+  target_link_libraries(shadps4 PRIVATE ${MOLTENVK})
+
+  # Replacement for std::chrono::time_zone
+  target_link_libraries(shadps4 PRIVATE date::date-tz)
+endif()
 
 if (NOT ENABLE_QT_GUI)
   target_link_libraries(shadps4 PRIVATE SDL3::SDL3)
@@ -591,6 +628,6 @@ target_include_directories(shadps4 PRIVATE ${HOST_SHADERS_INCLUDE})
 
 if (ENABLE_QT_GUI)
     set_target_properties(shadps4 PROPERTIES
-#        WIN32_EXECUTABLE ON
+#       WIN32_EXECUTABLE ON
         MACOSX_BUNDLE ON)
 endif()

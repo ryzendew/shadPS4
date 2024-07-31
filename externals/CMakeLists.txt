@@ -59,6 +59,7 @@ endif()
 
 # SDL3
 if (NOT TARGET SDL3::SDL3)
+    set(SDL_PIPEWIRE OFF)
     add_subdirectory(sdl3)
 endif()
 
@@ -71,6 +72,13 @@ endif()
 # VMA
 if (NOT TARGET GPUOpen::VulkanMemoryAllocator)
     add_subdirectory(vma)
+endif()
+
+# RenderDoc
+if (NOT TARGET RenderDoc::API)
+    add_library(renderdoc INTERFACE)
+    target_include_directories(renderdoc SYSTEM INTERFACE ./renderdoc)
+    add_library(RenderDoc::API ALIAS renderdoc)
 endif()
 
 # glslang
@@ -133,10 +141,23 @@ if (WIN32)
     target_compile_options(sirit PUBLIC "-Wno-error=unused-command-line-argument")
 endif()
 
+# date
+if (APPLE AND NOT TARGET date::date-tz)
+    option(BUILD_TZ_LIB "" ON)
+    option(USE_SYSTEM_TZ_DB "" ON)
+    add_subdirectory(date)
+endif()
+
 # Tracy
 option(TRACY_ENABLE "" ON)
 option(TRACY_NO_CRASH_HANDLER "" ON) # Otherwise texture cache exceptions will be treaten as a crash
 option(TRACY_ON_DEMAND "" ON)
 option(TRACY_NO_FRAME_IMAGE "" ON)
 option(TRACY_FIBERS "" ON) # For AmdGpu frontend profiling
+option(TRACY_NO_SYSTEM_TRACING "" ON)
+option(TRACY_NO_CALLSTACK "" ON)
+option(TRACY_NO_CODE_TRANSFER "" ON)
+option(TRACY_NO_SAMPLING "" ON)
+option(TRACY_ONLY_LOCALHOST "" ON)
+option(TRACY_NO_CONTEXT_SWITCH "" ON)
 add_subdirectory(tracy)

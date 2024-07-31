@@ -17,11 +17,12 @@ namespace Shader {
 static constexpr size_t NumUserDataRegs = 16;
 
 enum class Stage : u32 {
-    Vertex,
-    TessellationControl,
-    TessellationEval,
-    Geometry,
     Fragment,
+    Vertex,
+    Geometry,
+    Export,
+    Hull,
+    Local,
     Compute,
 };
 constexpr u32 MaxStageTypes = 6;
@@ -73,8 +74,7 @@ struct Info;
 struct BufferResource {
     u32 sgpr_base;
     u32 dword_offset;
-    u32 stride;
-    u32 num_records;
+    u32 length;
     IR::Type used_types;
     AmdGpu::Buffer inline_cbuf;
     bool is_storage{false};
@@ -97,8 +97,11 @@ using ImageResourceList = boost::container::static_vector<ImageResource, 16>;
 struct SamplerResource {
     u32 sgpr_base;
     u32 dword_offset;
+    AmdGpu::Sampler inline_sampler{};
     u32 associated_image : 4;
     u32 disable_aniso : 1;
+
+    constexpr AmdGpu::Sampler GetSsharp(const Info& info) const noexcept;
 };
 using SamplerResourceList = boost::container::static_vector<SamplerResource, 16>;
 
@@ -163,6 +166,7 @@ struct Info {
     std::array<u32, 3> workgroup_size{};
 
     u32 num_user_data;
+    u32 num_input_vgprs;
     std::span<const u32> user_data;
     Stage stage;
 
@@ -174,6 +178,7 @@ struct Info {
     bool has_image_gather{};
     bool has_image_query{};
     bool uses_group_quad{};
+    bool uses_shared{};
     bool uses_shared_u8{};
     bool uses_shared_u16{};
     bool uses_fp16{};
@@ -195,6 +200,10 @@ constexpr AmdGpu::Buffer BufferResource::GetVsharp(const Info& info) const noexc
     return inline_cbuf ? inline_cbuf : info.ReadUd<AmdGpu::Buffer>(sgpr_base, dword_offset);
 }
 
+constexpr AmdGpu::Sampler SamplerResource::GetSsharp(const Info& info) const noexcept {
+    return inline_sampler ? inline_sampler : info.ReadUd<AmdGpu::Sampler>(sgpr_base, dword_offset);
+}
+
 } // namespace Shader
 
 template <>
@@ -203,7 +212,7 @@ struct fmt::formatter<Shader::Stage> {
         return ctx.begin();
     }
     auto format(const Shader::Stage& stage, format_context& ctx) const {
-        constexpr static std::array names = {"vs", "tc", "te", "gs", "fs", "cs"};
+        constexpr static std::array names = {"fs", "vs", "gs", "es", "hs", "ls", "cs"};
         return fmt::format_to(ctx.out(), "{}", names[static_cast<size_t>(stage)]);
     }
 };

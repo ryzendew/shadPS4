@@ -47,20 +47,20 @@ public:
     /// Invalidates any image in the logical page range.
     void OnCpuWrite(VAddr address);
 
-    /// Retrieves the image handle of the image with the provided attributes and address.
-    [[nodiscard]] ImageId FindImage(const ImageInfo& info, VAddr cpu_address,
-                                    bool refresh_on_create = true);
+    /// Retrieves the image handle of the image with the provided attributes.
+    [[nodiscard]] ImageId FindImage(const ImageInfo& info, bool refresh_on_create = true);
 
     /// Retrieves an image view with the properties of the specified image descriptor.
-    [[nodiscard]] ImageView& FindImageView(const AmdGpu::Image& image, bool is_storage);
+    [[nodiscard]] ImageView& FindTexture(const ImageInfo& image_info,
+                                         const ImageViewInfo& view_info);
 
     /// Retrieves the render target with specified properties
-    [[nodiscard]] ImageView& RenderTarget(const AmdGpu::Liverpool::ColorBuffer& buffer,
-                                          const AmdGpu::Liverpool::CbDbExtent& hint);
-    [[nodiscard]] ImageView& DepthTarget(const AmdGpu::Liverpool::DepthBuffer& buffer,
-                                         VAddr htile_address,
-                                         const AmdGpu::Liverpool::CbDbExtent& hint,
-                                         bool write_enabled);
+    [[nodiscard]] ImageView& FindRenderTarget(const ImageInfo& image_info,
+                                              const ImageViewInfo& view_info);
+
+    /// Retrieves the depth target with specified properties
+    [[nodiscard]] ImageView& FindDepthTarget(const ImageInfo& image_info,
+                                             const ImageViewInfo& view_info);
 
     /// Reuploads image contents.
     void RefreshImage(Image& image);
@@ -156,9 +156,6 @@ private:
 
     /// Register image in the page table
     void RegisterImage(ImageId image);
-
-    /// Register metadata surfaces attached to the image
-    void RegisterMeta(const ImageInfo& info, ImageId image);
 
     /// Unregister image from the page table
     void UnregisterImage(ImageId image);

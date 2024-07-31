@@ -4,6 +4,7 @@
 #pragma once
 
 #include <span>
+#include <unordered_map>
 
 #include "video_core/renderer_vulkan/vk_platform.h"
 
@@ -16,6 +17,12 @@ class WindowSDL;
 
 VK_DEFINE_HANDLE(VmaAllocator)
 
+#ifdef __APPLE__
+#define VULKAN_LIBRARY_NAME "libMoltenVK.dylib"
+#else
+#define VULKAN_LIBRARY_NAME
+#endif
+
 namespace Vulkan {
 
 class Instance {
@@ -27,6 +34,13 @@ public:
 
     /// Returns a formatted string for the driver version
     std::string GetDriverVersionName();
+
+    /// Gets a compatibility format if the format is not supported.
+    [[nodiscard]] vk::Format GetSupportedFormat(vk::Format format) const;
+
+    /// Re-orders a component swizzle for format compatibility, if needed.
+    [[nodiscard]] vk::ComponentMapping GetSupportedComponentSwizzle(
+        vk::Format format, vk::ComponentMapping swizzle) const;
 
     /// Returns the Vulkan instance
     vk::Instance GetInstance() const {
@@ -92,11 +106,6 @@ public:
     /// Returns true when VK_EXT_fragment_shader_interlock is supported
     bool IsFragmentShaderInterlockSupported() const {
         return fragment_shader_interlock;
-    }
-
-    /// Returns true when VK_KHR_image_format_list is supported
-    bool IsImageFormatListSupported() const {
-        return image_format_list;
     }
 
     /// Returns true when VK_EXT_pipeline_creation_cache_control is supported
@@ -179,6 +188,11 @@ public:
         return properties.limits.nonCoherentAtomSize;
     }
 
+    /// Returns the subgroup size of the selected physical device.
+    u32 SubgroupSize() const {
+        return subgroup_size;
+    }
+
     /// Returns the maximum supported elements in a texel buffer
     u32 MaxTexelBufferElements() const {
         return properties.limits.maxTexelBufferElements;
@@ -205,8 +219,14 @@ private:
     void CollectDeviceParameters();
     void CollectToolingInfo();
 
+    /// Determines if a format is supported.
+    [[nodiscard]] bool IsFormatSupported(vk::Format format) const;
+
+    /// Gets a commonly available alternative for an unsupported pixel format.
+    vk::Format GetAlternativeFormat(const vk::Format format) const;
+
 private:
-    vk::DynamicLoader dl;
+    vk::DynamicLoader dl{VULKAN_LIBRARY_NAME};
     vk::UniqueInstance instance;
     vk::PhysicalDevice physical_device;
     vk::UniqueDevice device;
@@ -220,13 +240,13 @@ private:
     vk::Queue graphics_queue;
     std::vector<vk::PhysicalDevice> physical_devices;
     std::vector<std::string> available_extensions;
+    std::unordered_map<vk::Format, vk::FormatProperties> format_properties;
     TracyVkCtx profiler_context{};
     u32 queue_family_index{0};
     bool image_view_reinterpretation{true};
     bool timeline_semaphores{};
     bool custom_border_color{};
     bool fragment_shader_interlock{};
-    bool image_format_list{};
     bool pipeline_creation_cache_control{};
     bool fragment_shader_barycentric{};
     bool shader_stencil_export{};
@@ -234,6 +254,7 @@ private:
     bool workgroup_memory_explicit_layout{};
     bool color_write_en{};
     u64 min_imported_host_pointer_alignment{};
+    u32 subgroup_size{};
     bool tooling_info{};
     bool debug_utils_supported{};
     bool has_nsight_graphics{};

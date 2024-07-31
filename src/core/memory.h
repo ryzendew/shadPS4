@@ -89,7 +89,15 @@ struct VirtualMemoryArea {
     uintptr_t fd = 0;
 
     bool Contains(VAddr addr, size_t size) const {
-        return addr >= base && (addr + size) < (base + this->size);
+        return addr >= base && (addr + size) <= (base + this->size);
+    }
+
+    bool IsFree() const noexcept {
+        return type == VMAType::Free;
+    }
+
+    bool IsMapped() const noexcept {
+        return type != VMAType::Free && type != VMAType::Reserved;
     }
 
     bool CanMergeWith(const VirtualMemoryArea& next) const {
@@ -132,6 +140,12 @@ public:
         return total_flexible_size - flexible_usage;
     }
 
+    /// Returns the offset of the mapped virtual system managed memory base from where it usually
+    /// would be mapped.
+    [[nodiscard]] VAddr SystemReservedVirtualBase() noexcept {
+        return impl.SystemReservedVirtualBase();
+    }
+
     PAddr Allocate(PAddr search_start, PAddr search_end, size_t size, u64 alignment,
                    int memory_type);
 
@@ -159,6 +173,11 @@ public:
                              PAddr* phys_addr_out, size_t* size_out);
 
     std::pair<vk::Buffer, size_t> GetVulkanBuffer(VAddr addr);
+
+    int GetDirectMemoryType(PAddr addr, int* directMemoryTypeOut, void** directMemoryStartOut,
+                            void** directMemoryEndOut);
+
+    void NameVirtualRange(VAddr virtual_addr, size_t size, std::string_view name);
 
 private:
     VMAHandle FindVMA(VAddr target) {
@@ -189,9 +208,11 @@ private:
         return iter;
     }
 
-    VirtualMemoryArea& AddMapping(VAddr virtual_addr, size_t size);
+    VAddr SearchFree(VAddr virtual_addr, size_t size, u32 alignment = 0);
 
-    DirectMemoryArea& AddDmemAllocation(PAddr addr, size_t size);
+    VMAHandle CarveVMA(VAddr virtual_addr, size_t size);
+
+    DirectMemoryArea& CarveDmemArea(PAddr addr, size_t size);
 
     VMAHandle Split(VMAHandle vma_handle, size_t offset_in_vma);
 
