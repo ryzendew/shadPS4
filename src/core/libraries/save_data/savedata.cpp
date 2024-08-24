@@ -516,6 +516,7 @@ s32 saveDataMount(u32 user_id, char* dir_name, u32 mount_mode,
             mount_result->mount_status = 1;
         }
     } break;
+    case ORBIS_SAVE_DATA_MOUNT_MODE_CREATE2:
     case ORBIS_SAVE_DATA_MOUNT_MODE_CREATE2 | ORBIS_SAVE_DATA_MOUNT_MODE_RDWR:
     case ORBIS_SAVE_DATA_MOUNT_MODE_CREATE2 | ORBIS_SAVE_DATA_MOUNT_MODE_RDWR |
         ORBIS_SAVE_DATA_MOUNT_MODE_COPY_ICON: {
@@ -792,8 +793,8 @@ int PS4_SYSV_ABI sceSaveDataTransferringMount() {
 }
 
 s32 PS4_SYSV_ABI sceSaveDataUmount(const OrbisSaveDataMountPoint* mountPoint) {
-    LOG_INFO(Lib_SaveData, "mountPoint = {}", std::string(mountPoint->data));
-    if (std::string(mountPoint->data).empty()) {
+    LOG_INFO(Lib_SaveData, "mountPoint = {}", mountPoint->data);
+    if (std::string_view(mountPoint->data).empty()) {
         return ORBIS_SAVE_DATA_ERROR_NOT_MOUNTED;
     }
     const auto& mount_dir = Common::FS::GetUserPath(Common::FS::PathType::SaveDataDir) /

@@ -37,13 +37,18 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 - Windows 10 or Ubuntu 22.04
 
-## Have the latest WIP version
+## How to run the latest Work-in-Progress builds of ShadPS4
 
-When you go to Github Release, you have the latest major versions (e.g. v0.0.3), but if you want to have the latest Work-In-Progress version, you can go to Actions on Github to download it (Please note a Github account is required to be able to download).
+1. Go to <https://github.com/shadps4-emu/shadPS4/actions> and make sure you are logged into your GitHub account (important!)
+2. On the left side of the page, select your operating system of choice (the "**qt**" versions have a user interface, which is probably the one you want. The others are SDL versions, which can only be run via command line). ![image](https://github.com/user-attachments/assets/43f01bbf-236c-4d6d-98ac-f5a5badd4ce8)
 
-<img src="https://github.com/shadps4-emu/shadPS4/blob/main/documents/Quickstart/1.png" width="800"></a>
+3. In the workflow list, select the latest entry with a green :white_check_mark: icon in front of it. (or the latest entry for whatever pull request you wish to test). ![image](https://github.com/user-attachments/assets/6365f407-867c-44ae-bf00-944f8d84a349)
 
-After downloading the version suitable for you (Windows or Linux), you must unzip the file and then you can run it. Please note, there are two versions for each platform, a Qt version with user interface and one without (SDL Builds).
+4. On the bottom of this page, select the name of the file, and it should start downloading. (If there is no file here, double check that you are indeed logged into a GitHub account, and that there is a green :white_check_mark: icon. ![image](https://github.com/user-attachments/assets/97924500-3911-4f90-ab63-ffae7e52700b)
+
+5. Once downloaded, extract to its own folder, and run ShadPS4's executable from the extracted folder.
+
+6. Upon first launch, ShadPS4 will prompt you to select a folder to store your installed games in. Select "Browse" and then select a folder that ShadPS4 can use to install your PKG files to.
 
 ## Install PKG files
 
@@ -53,4 +58,24 @@ To install PKG files (game and updates), you will need the Qt application (with 
 
 ## Configure the emulator
 
-You can configure the emulator in the "user" folder (created after the first start of the application) then in the "config.toml" file. Here you can find lots of parameters to set with True or False.
+You can configure the emulator by editing the `config.toml` file found in the `user` folder created after starting the application.\
+Some settings may be related to more technical development and debugging. For more information on those, see [Debugging](https://github.com/shadps4-emu/shadPS4/blob/main/documents/Debugging/Debugging.md#configuration).
+
+Here's a list of configuration entries that are worth changing:
+
+- `[General]`
+
+  - `Fullscreen`: Display the game in a full screen borderless window.
+  
+  - `logType`: Configures logging synchronization (`sync`/`async`)
+    - It can be beneficial to set this to `sync` in order for the log to accurately maintain message order, at the cost of performance.
+    - Use when sending logs to developers. See more about [reporting issues](https://github.com/shadps4-emu/shadPS4/blob/main/documents/Debugging/Debugging.md#reporting-and-communicating-about-issues).
+  - `logFilter`: Sets the logging category for various logging classes.
+    - Format: `<class>:<level> ...`, `<class.*>:<level> <*:level> ...`
+    - Valid log levels: `Trace, Debug, Info, Warning, Error, Critical` - in this order, setting a level silences all levels preceding it and logs every level after it.
+    - Examples:
+      - If the log is being spammed with messages coming from Lib.Pad, you can use `Lib.Pad:Critical` to only log critical-level messages.
+      - If you'd like to mute everything, but still want to receive messages from Vulkan rendering: `*:Error Render.Vulkan:Info`
+    
+- `[GPU]`
+  - `screenWidth` and `screenHeight`: Configures the game window width and height.

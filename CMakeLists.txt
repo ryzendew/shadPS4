@@ -56,21 +56,34 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# generate git revision information
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/externals/cmake-modules/")
+include(GetGitRevisionDescription)
+get_git_head_revision(GIT_REF_SPEC GIT_REV)
+git_describe(GIT_DESC --always --long --dirty)
+git_branch_name(GIT_BRANCH)
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/common/scm_rev.cpp.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/common/scm_rev.cpp" @ONLY)
+
 find_package(Boost 1.84.0 CONFIG)
-find_package(cryptopp 8.9.0 MODULE)
-find_package(fmt 10.2.1 CONFIG)
+find_package(FFmpeg 5.1.2 MODULE)
+find_package(fmt 10.2.0 CONFIG)
 find_package(glslang 14.2.0 CONFIG)
 find_package(magic_enum 0.9.6 CONFIG)
+find_package(RenderDoc 1.6.0 MODULE)
 find_package(SDL3 3.1.2 CONFIG)
-find_package(toml11 3.8.1 CONFIG)
+find_package(toml11 4.2.0 CONFIG)
 find_package(tsl-robin-map 1.3.0 CONFIG)
 find_package(VulkanHeaders 1.3.289 CONFIG)
 find_package(VulkanMemoryAllocator 3.1.0 CONFIG)
 find_package(xbyak 7.07 CONFIG)
 find_package(xxHash 0.8.2 MODULE)
-find_package(zlib-ng 2.2.0 MODULE)
-find_package(Zydis 4.1.0 CONFIG)
-find_package(RenderDoc MODULE)
+find_package(zlib-ng 2.1.7 MODULE)
+find_package(Zydis 5.0.0 CONFIG)
+
+if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR NOT MSVC)
+    find_package(cryptopp 8.9.0 MODULE)
+endif()
 
 if (APPLE)
     find_package(date 3.0.1 CONFIG)
@@ -87,6 +100,15 @@ if(HAVE_SEM_TIMEDWAIT OR WIN32)
     add_compile_options(-DHAVE_SEM_TIMEDWAIT)
 endif()
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    # libc++ requires -fexperimental-library to enable std::jthread and std::stop_token support.
+    include(CheckCXXSymbolExists)
+    check_cxx_symbol_exists(_LIBCPP_VERSION version LIBCPP)
+    if(LIBCPP)
+        add_compile_options(-fexperimental-library)
+    endif()
+endif()
+
 add_subdirectory(externals)
 include_directories(src)
 
@@ -94,9 +116,11 @@ if(ENABLE_QT_GUI)
     find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent)
     qt_standard_project_setup()
     set(CMAKE_AUTORCC ON)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTOUIC ON)
 endif()
 
-set(AUDIO_CORE src/audio_core/sdl_audio.cpp 
+set(AUDIO_CORE src/audio_core/sdl_audio.cpp
                src/audio_core/sdl_audio.h
 )
 
@@ -106,6 +130,8 @@ set(AUDIO_LIB src/core/libraries/audio/audioin.cpp
               src/core/libraries/audio/audioout.h
               src/core/libraries/ajm/ajm.cpp
               src/core/libraries/ajm/ajm.h
+              src/core/libraries/ngs2/ngs2.cpp
+              src/core/libraries/ngs2/ngs2.h
 )
 
 set(GNM_LIB src/core/libraries/gnmdriver/gnmdriver.cpp
@@ -170,11 +196,27 @@ set(SYSTEM_LIBS src/core/libraries/system/commondialog.cpp
                 src/core/libraries/app_content/app_content.h
                 src/core/libraries/rtc/rtc.cpp
                 src/core/libraries/rtc/rtc.h
+                src/core/libraries/rtc/rtc_error.h
                 src/core/libraries/disc_map/disc_map.cpp
                 src/core/libraries/disc_map/disc_map.h
                 src/core/libraries/disc_map/disc_map_codes.h
+                src/core/libraries/avplayer/avplayer_common.cpp
+                src/core/libraries/avplayer/avplayer_common.h
+                src/core/libraries/avplayer/avplayer_file_streamer.cpp
+                src/core/libraries/avplayer/avplayer_file_streamer.h
+                src/core/libraries/avplayer/avplayer_impl.cpp
+                src/core/libraries/avplayer/avplayer_impl.h
+                src/core/libraries/avplayer/avplayer_source.cpp
+                src/core/libraries/avplayer/avplayer_source.h
+                src/core/libraries/avplayer/avplayer_state.cpp
+                src/core/libraries/avplayer/avplayer_state.h
                 src/core/libraries/avplayer/avplayer.cpp
                 src/core/libraries/avplayer/avplayer.h
+                src/core/libraries/ngs2/ngs2.cpp
+                src/core/libraries/ngs2/ngs2.h
+                src/core/libraries/ngs2/ngs2_error.h
+                src/core/libraries/ngs2/ngs2_impl.cpp
+                src/core/libraries/ngs2/ngs2_impl.h
 )
 
 set(VIDEOOUT_LIB src/core/libraries/videoout/buffer.h
@@ -184,21 +226,7 @@ set(VIDEOOUT_LIB src/core/libraries/videoout/buffer.h
                  src/core/libraries/videoout/video_out.h
 )
 
-set(LIBC_SOURCES src/core/libraries/libc/libc.cpp
-                 src/core/libraries/libc/libc.h
-                 src/core/libraries/libc/printf.h
-                 src/core/libraries/libc/va_ctx.h
-                 src/core/libraries/libc/libc_cxa.cpp
-                 src/core/libraries/libc/libc_cxa.h
-                 src/core/libraries/libc/libc_stdio.cpp
-                 src/core/libraries/libc/libc_stdio.h
-                 src/core/libraries/libc/libc_math.cpp
-                 src/core/libraries/libc/libc_math.h
-                 src/core/libraries/libc/libc_string.cpp
-                 src/core/libraries/libc/libc_string.h
-                 src/core/libraries/libc/libc_stdlib.cpp
-                 src/core/libraries/libc/libc_stdlib.h
-                 src/core/libraries/libc_internal/libc_internal.cpp
+set(LIBC_SOURCES src/core/libraries/libc_internal/libc_internal.cpp
                  src/core/libraries/libc_internal/libc_internal.h
 )
 
@@ -237,6 +265,7 @@ set(NP_LIBS src/core/libraries/np_manager/np_manager.cpp
             src/core/libraries/np_trophy/np_trophy.cpp
             src/core/libraries/np_trophy/np_trophy.h
 )
+
 set(MISC_LIBS  src/core/libraries/screenshot/screenshot.cpp
                src/core/libraries/screenshot/screenshot.h
 )
@@ -274,6 +303,7 @@ set(COMMON src/common/logging/backend.cpp
            src/common/native_clock.h
            src/common/path_util.cpp
            src/common/path_util.h
+           src/common/object_pool.h
            src/common/polyfill_thread.h
            src/common/rdtsc.cpp
            src/common/rdtsc.h
@@ -285,9 +315,12 @@ set(COMMON src/common/logging/backend.cpp
            src/common/thread.h
            src/common/types.h
            src/common/uint128.h
+           src/common/unique_function.h
            src/common/version.h
            src/common/ntapi.h
            src/common/ntapi.cpp
+           src/common/scm_rev.cpp
+           src/common/scm_rev.h
 )
 
 set(CORE src/core/aerolib/stubs.cpp
@@ -356,7 +389,6 @@ set(CORE src/core/aerolib/stubs.cpp
 )
 
 set(SHADER_RECOMPILER src/shader_recompiler/exception.h
-                      src/shader_recompiler/object_pool.h
                       src/shader_recompiler/profile.h
                       src/shader_recompiler/recompiler.cpp
                       src/shader_recompiler/recompiler.h
@@ -383,7 +415,6 @@ set(SHADER_RECOMPILER src/shader_recompiler/exception.h
                       src/shader_recompiler/backend/spirv/spirv_emit_context.h
                       src/shader_recompiler/frontend/translate/data_share.cpp
                       src/shader_recompiler/frontend/translate/export.cpp
-                      src/shader_recompiler/frontend/translate/flat_memory.cpp
                       src/shader_recompiler/frontend/translate/scalar_alu.cpp
                       src/shader_recompiler/frontend/translate/scalar_memory.cpp
                       src/shader_recompiler/frontend/translate/translate.cpp
@@ -407,6 +438,7 @@ set(SHADER_RECOMPILER src/shader_recompiler/exception.h
                       src/shader_recompiler/ir/passes/dead_code_elimination_pass.cpp
                       src/shader_recompiler/ir/passes/identity_removal_pass.cpp
                       src/shader_recompiler/ir/passes/ir_passes.h
+                      src/shader_recompiler/ir/passes/lower_shared_mem_to_registers.cpp
                       src/shader_recompiler/ir/passes/resource_tracking_pass.cpp
                       src/shader_recompiler/ir/passes/shader_info_collection_pass.cpp
                       src/shader_recompiler/ir/passes/ssa_rewrite_pass.cpp
@@ -440,6 +472,13 @@ set(VIDEO_CORE src/video_core/amdgpu/liverpool.cpp
                src/video_core/amdgpu/pm4_cmds.h
                src/video_core/amdgpu/pm4_opcodes.h
                src/video_core/amdgpu/resource.h
+               src/video_core/buffer_cache/buffer.cpp
+               src/video_core/buffer_cache/buffer.h
+               src/video_core/buffer_cache/buffer_cache.cpp
+               src/video_core/buffer_cache/buffer_cache.h
+               src/video_core/buffer_cache/memory_tracker_base.h
+               src/video_core/buffer_cache/range_set.h
+               src/video_core/buffer_cache/word_manager.h
                src/video_core/renderer_vulkan/liverpool_to_vk.cpp
                src/video_core/renderer_vulkan/liverpool_to_vk.h
                src/video_core/renderer_vulkan/renderer_vulkan.cpp
@@ -468,8 +507,6 @@ set(VIDEO_CORE src/video_core/amdgpu/liverpool.cpp
                src/video_core/renderer_vulkan/vk_scheduler.h
                src/video_core/renderer_vulkan/vk_shader_util.cpp
                src/video_core/renderer_vulkan/vk_shader_util.h
-               src/video_core/renderer_vulkan/vk_stream_buffer.cpp
-               src/video_core/renderer_vulkan/vk_stream_buffer.h
                src/video_core/renderer_vulkan/vk_swapchain.cpp
                src/video_core/renderer_vulkan/vk_swapchain.h
                src/video_core/texture_cache/image.cpp
@@ -485,6 +522,9 @@ set(VIDEO_CORE src/video_core/amdgpu/liverpool.cpp
                src/video_core/texture_cache/tile_manager.cpp
                src/video_core/texture_cache/tile_manager.h
                src/video_core/texture_cache/types.h
+               src/video_core/page_manager.cpp
+               src/video_core/page_manager.h
+               src/video_core/multi_level_page_table.h
                src/video_core/renderdoc.cpp
                src/video_core/renderdoc.h
 )
@@ -504,32 +544,37 @@ set(EMULATOR src/emulator.cpp
 if(ENABLE_QT_GUI)
 qt_add_resources(RESOURCE_FILES src/shadps4.qrc)
 
-set(QT_GUI 
-    src/qt_gui/main_window_ui.h
-    src/qt_gui/main_window.cpp
-    src/qt_gui/main_window.h
-    src/qt_gui/gui_context_menus.h
-    src/qt_gui/game_list_utils.h
-    src/qt_gui/game_info.cpp
-    src/qt_gui/game_info.h
-    src/qt_gui/game_list_frame.cpp
-    src/qt_gui/game_list_frame.h
-    src/qt_gui/game_grid_frame.cpp
-    src/qt_gui/game_grid_frame.h
-    src/qt_gui/game_install_dialog.cpp
-    src/qt_gui/game_install_dialog.h
-    src/qt_gui/pkg_viewer.cpp
-    src/qt_gui/pkg_viewer.h
-    src/qt_gui/trophy_viewer.cpp
-    src/qt_gui/trophy_viewer.h
-    src/qt_gui/elf_viewer.cpp
-    src/qt_gui/elf_viewer.h
-    src/qt_gui/main_window_themes.cpp
-    src/qt_gui/main_window_themes.h
-    src/qt_gui/main.cpp
-    ${EMULATOR}
-    ${RESOURCE_FILES}
-    )
+set(QT_GUI src/qt_gui/about_dialog.cpp
+           src/qt_gui/about_dialog.h
+           src/qt_gui/about_dialog.ui
+           src/qt_gui/main_window_ui.h
+           src/qt_gui/main_window.cpp
+           src/qt_gui/main_window.h
+           src/qt_gui/gui_context_menus.h
+           src/qt_gui/game_list_utils.h
+           src/qt_gui/game_info.cpp
+           src/qt_gui/game_info.h
+           src/qt_gui/game_list_frame.cpp
+           src/qt_gui/game_list_frame.h
+           src/qt_gui/game_grid_frame.cpp
+           src/qt_gui/game_grid_frame.h
+           src/qt_gui/game_install_dialog.cpp
+           src/qt_gui/game_install_dialog.h
+           src/qt_gui/pkg_viewer.cpp
+           src/qt_gui/pkg_viewer.h
+           src/qt_gui/trophy_viewer.cpp
+           src/qt_gui/trophy_viewer.h
+           src/qt_gui/elf_viewer.cpp
+           src/qt_gui/elf_viewer.h
+           src/qt_gui/main_window_themes.cpp
+           src/qt_gui/main_window_themes.h
+           src/qt_gui/settings_dialog.cpp
+           src/qt_gui/settings_dialog.h
+           src/qt_gui/settings_dialog.ui
+           src/qt_gui/main.cpp
+           ${EMULATOR}
+           ${RESOURCE_FILES}
+)
 endif()
 
 if (ENABLE_QT_GUI)
@@ -542,6 +587,7 @@ if (ENABLE_QT_GUI)
         ${SHADER_RECOMPILER}
         ${VIDEO_CORE}
         ${EMULATOR}
+        src/images/shadPS4.icns
     )
 else()
     add_executable(shadps4
@@ -562,7 +608,7 @@ endif()
 
 create_target_directory_groups(shadps4)
 
-target_link_libraries(shadps4 PRIVATE magic_enum::magic_enum fmt::fmt toml11::toml11 tsl::robin_map xbyak::xbyak Tracy::TracyClient RenderDoc::API)
+target_link_libraries(shadps4 PRIVATE magic_enum::magic_enum fmt::fmt toml11::toml11 tsl::robin_map xbyak::xbyak Tracy::TracyClient RenderDoc::API FFmpeg::ffmpeg)
 target_link_libraries(shadps4 PRIVATE Boost::headers GPUOpen::VulkanMemoryAllocator sirit Vulkan::Headers xxHash::xxhash Zydis::Zydis glslang::SPIRV glslang::glslang SDL3::SDL3)
 
 if (APPLE)
@@ -592,22 +638,39 @@ if (ENABLE_QT_GUI)
 endif()
 
 if (WIN32)
-    target_link_libraries(shadps4 PRIVATE mincore winpthreads clang_rt.builtins-x86_64.lib)
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE -D_SCL_SECURE_NO_WARNINGS)
+    target_link_libraries(shadps4 PRIVATE mincore winpthreads)
+
+    if (MSVC)
+        # MSVC likes putting opinions on what people can use, disable:
+        add_definitions(-D_CRT_SECURE_NO_WARNINGS -D_CRT_NONSTDC_NO_DEPRECATE -D_SCL_SECURE_NO_WARNINGS)
+    endif()
+
     add_definitions(-DNOMINMAX -DWIN32_LEAN_AND_MEAN)
+
     if (MSVC)
         # Needed for conflicts with time.h of windows.h
         add_definitions(-D_TIMESPEC_DEFINED)
     endif()
+
     # Target Windows 10 RS5
     add_definitions(-DNTDDI_VERSION=0x0A000006 -D_WIN32_WINNT=0x0A00 -DWINVER=0x0A00)
-    # Increase stack commit area
-    target_link_options(shadps4 PRIVATE /STACK:0x200000,0x200000)
+
+    if (MSVC)
+        target_link_libraries(shadps4 PRIVATE clang_rt.builtins-x86_64.lib)
+    endif()
+
     # Disable ASLR so we can reserve the user area
     if (MSVC)
         target_link_options(shadps4 PRIVATE /DYNAMICBASE:NO)
     else()
         target_link_options(shadps4 PRIVATE -Wl,--disable-dynamicbase)
+    endif()
+
+    # Increase stack commit area (Needed, otherwise there are crashes)
+    if (MSVC)
+        target_link_options(shadps4 PRIVATE /STACK:0x200000,0x200000)
+    else()
+        target_link_options(shadps4 PRIVATE -Wl,--stack,2097152)
     endif()
 endif()
 
@@ -629,5 +692,9 @@ target_include_directories(shadps4 PRIVATE ${HOST_SHADERS_INCLUDE})
 if (ENABLE_QT_GUI)
     set_target_properties(shadps4 PROPERTIES
 #       WIN32_EXECUTABLE ON
-        MACOSX_BUNDLE ON)
+        MACOSX_BUNDLE ON
+        MACOSX_BUNDLE_ICON_FILE shadPS4.icns)
+
+    set_source_files_properties(src/images/shadPS4.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources)
 endif()

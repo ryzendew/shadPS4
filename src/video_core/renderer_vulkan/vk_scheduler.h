@@ -6,6 +6,7 @@
 #include <condition_variable>
 #include <boost/container/static_vector.hpp>
 #include "common/types.h"
+#include "common/unique_function.h"
 #include "video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "video_core/renderer_vulkan/vk_resource_pool.h"
 
@@ -19,7 +20,8 @@ struct RenderState {
     vk::RenderingAttachmentInfo depth_attachment{};
     vk::Image depth_image{};
     u32 num_color_attachments{};
-    u32 num_depth_attachments{};
+    bool has_depth{};
+    bool has_stencil{};
     u32 width = std::numeric_limits<u32>::max();
     u32 height = std::numeric_limits<u32>::max();
 
@@ -97,8 +99,8 @@ public:
     }
 
     /// Defers an operation until the gpu has reached the current cpu tick.
-    void DeferOperation(auto&& func) {
-        pending_ops.emplace(func, CurrentTick());
+    void DeferOperation(Common::UniqueFunction<void>&& func) {
+        pending_ops.emplace(std::move(func), CurrentTick());
     }
 
     static std::mutex submit_mutex;
@@ -115,7 +117,7 @@ private:
     vk::CommandBuffer current_cmdbuf;
     std::condition_variable_any event_cv;
     struct PendingOp {
-        std::function<void()> callback;
+        Common::UniqueFunction<void> callback;
         u64 gpu_tick;
     };
     std::queue<PendingOp> pending_ops;

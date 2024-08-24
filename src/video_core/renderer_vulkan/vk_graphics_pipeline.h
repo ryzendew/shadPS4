@@ -3,17 +3,14 @@
 
 #include <xxhash.h>
 #include "common/types.h"
-#include "shader_recompiler/runtime_info.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_common.h"
-
-namespace Core {
-class MemoryManager;
-}
+#include "video_core/renderer_vulkan/vk_compute_pipeline.h"
 
 namespace VideoCore {
+class BufferCache;
 class TextureCache;
-}
+} // namespace VideoCore
 
 namespace Vulkan {
 
@@ -22,7 +19,6 @@ static constexpr u32 MaxShaderStages = 5;
 
 class Instance;
 class Scheduler;
-class StreamBuffer;
 
 using Liverpool = AmdGpu::Liverpool;
 
@@ -30,6 +26,7 @@ struct GraphicsPipelineKey {
     std::array<size_t, MaxShaderStages> stage_hashes;
     std::array<vk::Format, Liverpool::NumColorBuffers> color_formats;
     vk::Format depth_format;
+    vk::Format stencil_format;
 
     Liverpool::DepthControl depth;
     float depth_bounds_min;
@@ -43,6 +40,8 @@ struct GraphicsPipelineKey {
     Liverpool::StencilRefMask stencil_ref_front;
     Liverpool::StencilRefMask stencil_ref_back;
     Liverpool::PrimitiveType prim_type;
+    u32 enable_primitive_restart;
+    u32 primitive_restart_index;
     Liverpool::PolygonMode polygon_mode;
     Liverpool::CullMode cull_mode;
     Liverpool::FrontFace front_face;
@@ -60,11 +59,10 @@ class GraphicsPipeline {
 public:
     explicit GraphicsPipeline(const Instance& instance, Scheduler& scheduler,
                               const GraphicsPipelineKey& key, vk::PipelineCache pipeline_cache,
-                              std::span<const Shader::Info*, MaxShaderStages> infos,
-                              std::array<vk::ShaderModule, MaxShaderStages> modules);
+                              std::span<const Program*, MaxShaderStages> programs);
     ~GraphicsPipeline();
 
-    void BindResources(Core::MemoryManager* memory, StreamBuffer& staging,
+    void BindResources(const Liverpool::Regs& regs, VideoCore::BufferCache& buffer_cache,
                        VideoCore::TextureCache& texture_cache) const;
 
     vk::Pipeline Handle() const noexcept {
@@ -73,6 +71,10 @@ public:
 
     vk::PipelineLayout GetLayout() const {
         return *pipeline_layout;
+    }
+
+    const Shader::Info& GetStage(Shader::Stage stage) const noexcept {
+        return *stages[u32(stage)];
     }
 
     bool IsEmbeddedVs() const noexcept {
@@ -90,7 +92,6 @@ public:
 
 private:
     void BuildDescSetLayout();
-    void BindVertexBuffers(StreamBuffer& staging) const;
 
 private:
     const Instance& instance;
@@ -98,7 +99,7 @@ private:
     vk::UniquePipeline pipeline;
     vk::UniquePipelineLayout pipeline_layout;
     vk::UniqueDescriptorSetLayout desc_layout;
-    std::array<Shader::Info, MaxShaderStages> stages{};
+    std::array<const Shader::Info*, MaxShaderStages> stages{};
     GraphicsPipelineKey key;
 };
 

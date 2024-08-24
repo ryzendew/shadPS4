@@ -3,17 +3,10 @@
 
 #pragma once
 
-#include <QCoreApplication>
+#include <QClipboard>
 #include <QDesktopServices>
-#include <QFile>
-#include <QHeaderView>
-#include <QImage>
 #include <QMenu>
 #include <QMessageBox>
-#include <QPixmap>
-#include <QStandardPaths>
-#include <QTableWidget>
-#include <QTextStream>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 
@@ -53,6 +46,18 @@ public:
         menu.addAction(&openSfoViewer);
         menu.addAction(&openTrophyViewer);
 
+        // "Copy" submenu.
+        QMenu* copyMenu = new QMenu("Copy info", widget);
+        QAction* copyName = new QAction("Copy Name", widget);
+        QAction* copySerial = new QAction("Copy Serial", widget);
+        QAction* copyNameAll = new QAction("Copy All", widget);
+
+        copyMenu->addAction(copyName);
+        copyMenu->addAction(copySerial);
+        copyMenu->addAction(copyNameAll);
+
+        menu.addMenu(copyMenu);
+
         // Show menu.
         auto selected = menu.exec(global_pos);
         if (!selected) {
@@ -71,7 +76,7 @@ public:
                 QTableWidget* tableWidget = new QTableWidget(rows, 2);
                 tableWidget->setAttribute(Qt::WA_DeleteOnClose);
                 connect(widget->parent(), &QWidget::destroyed, tableWidget,
-                        [widget, tableWidget]() { tableWidget->deleteLater(); });
+                        [tableWidget]() { tableWidget->deleteLater(); });
 
                 tableWidget->verticalHeader()->setVisible(false); // Hide vertical header
                 int row = 0;
@@ -122,7 +127,7 @@ public:
             TrophyViewer* trophyViewer = new TrophyViewer(trophyPath, gameTrpPath);
             trophyViewer->show();
             connect(widget->parent(), &QWidget::destroyed, trophyViewer,
-                    [widget, trophyViewer]() { trophyViewer->deleteLater(); });
+                    [trophyViewer]() { trophyViewer->deleteLater(); });
         }
 
         if (selected == &createShortcut) {
@@ -165,12 +170,12 @@ public:
                     if (createShortcutLinux(linkPath, ebootPath, iconPath)) {
 #endif
                         QMessageBox::information(
-                            nullptr, "Shortcut Creation",
-                            QString("Shortcut created successfully:\n %1").arg(linkPath));
+                            nullptr, "Shortcut creation",
+                            QString("Shortcut created successfully!\n %1").arg(linkPath));
                     } else {
                         QMessageBox::critical(
                             nullptr, "Error",
-                            QString("Error creating shortcut:\n %1").arg(linkPath));
+                            QString("Error creating shortcut!\n %1").arg(linkPath));
                     }
                 } else {
                     QMessageBox::critical(nullptr, "Error", "Failed to convert icon.");
@@ -183,13 +188,34 @@ public:
                 if (createShortcutLinux(linkPath, ebootPath, iconPath)) {
 #endif
                     QMessageBox::information(
-                        nullptr, "Shortcut Creation",
-                        QString("Shortcut created successfully:\n %1").arg(linkPath));
+                        nullptr, "Shortcut creation",
+                        QString("Shortcut created successfully!\n %1").arg(linkPath));
                 } else {
                     QMessageBox::critical(nullptr, "Error",
-                                          QString("Error creating shortcut:\n %1").arg(linkPath));
+                                          QString("Error creating shortcut!\n %1").arg(linkPath));
                 }
             }
+        }
+
+        // Handle the "Copy" actions
+        if (selected == copyName) {
+            QClipboard* clipboard = QGuiApplication::clipboard();
+            clipboard->setText(QString::fromStdString(m_games[itemID].name));
+        }
+
+        if (selected == copySerial) {
+            QClipboard* clipboard = QGuiApplication::clipboard();
+            clipboard->setText(QString::fromStdString(m_games[itemID].serial));
+        }
+
+        if (selected == copyNameAll) {
+            QClipboard* clipboard = QGuiApplication::clipboard();
+            QString combinedText = QString("Name:%1 | Serial:%2 | Version:%3 | Size:%4")
+                                       .arg(QString::fromStdString(m_games[itemID].name))
+                                       .arg(QString::fromStdString(m_games[itemID].serial))
+                                       .arg(QString::fromStdString(m_games[itemID].version))
+                                       .arg(QString::fromStdString(m_games[itemID].size));
+            clipboard->setText(combinedText);
         }
     }
 
@@ -308,7 +334,7 @@ private:
         QFile shortcutFile(linkPath);
         if (!shortcutFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
             QMessageBox::critical(nullptr, "Error",
-                                  QString("Error creating shortcut:\n %1").arg(linkPath));
+                                  QString("Error creating shortcut!\n %1").arg(linkPath));
             return false;
         }
 

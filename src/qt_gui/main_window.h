@@ -3,13 +3,9 @@
 
 #pragma once
 
-#include <QAbstractButton>
 #include <QActionGroup>
 #include <QDragEnterEvent>
-#include <QMainWindow>
-#include <QMimeData>
-#include <QScopedPointer>
-#include <fmt/core.h>
+
 #include "common/config.h"
 #include "common/path_util.h"
 #include "core/file_format/psf.h"
@@ -38,11 +34,13 @@ public:
     bool Init();
     void InstallDragDropPkg(std::filesystem::path file, int pkgNum, int nPkg);
     void InstallDirectory();
+    void StartGame();
 
 private Q_SLOTS:
     void ConfigureGuiFromSettings();
     void SaveWindowState() const;
     void SearchGameTable(const QString& text);
+    void ShowGameList();
     void RefreshGameTable();
     void HandleResize(QResizeEvent* event);
 
@@ -52,12 +50,14 @@ private:
     void CreateActions();
     void CreateRecentGameActions();
     void CreateDockWindows();
+    void GetPhysicalDevices();
     void LoadGameLists();
     void CreateConnects();
     void SetLastUsedTheme();
     void SetLastIconSizeBullet();
     void SetUiIcons(bool isWhite);
     void InstallPkg();
+    void BootGame();
     void AddRecentFiles(QString filePath);
     QIcon RecolorIcon(const QIcon& icon, bool isWhite);
     bool isIconBlack = false;
@@ -77,6 +77,8 @@ private:
     QScopedPointer<ElfViewer> m_elf_viewer;
     // Status Bar.
     QScopedPointer<QStatusBar> statusBar;
+    // Available GPU devices
+    std::vector<QString> m_physical_devices;
 
     PSF psf;
 

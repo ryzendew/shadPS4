@@ -7,6 +7,7 @@
 #include "common/types.h"
 
 struct SDL_Window;
+struct SDL_Gamepad;
 union SDL_Event;
 
 namespace Input {
@@ -42,7 +43,7 @@ struct WindowSystemInfo {
 class WindowSDL {
 public:
     explicit WindowSDL(s32 width, s32 height, Input::GameController* controller,
-                       std::string_view game_title);
+                       std::string_view window_title);
     ~WindowSDL();
 
     s32 getWidth() const {
@@ -66,6 +67,9 @@ public:
 private:
     void onResize();
     void onKeyPress(const SDL_Event* event);
+    void onGamepadEvent(const SDL_Event* event);
+
+    int sdlGamepadToOrbisButton(u8 button);
 
 private:
     s32 width;

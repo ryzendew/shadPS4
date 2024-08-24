@@ -10,6 +10,7 @@
 #include "common/ntapi.h"
 #include "common/path_util.h"
 #include "common/polyfill_thread.h"
+#include "common/scm_rev.h"
 #include "common/singleton.h"
 #include "common/version.h"
 #include "core/file_format/playgo_chunk.h"
@@ -18,9 +19,9 @@
 #include "core/file_sys/fs.h"
 #include "core/libraries/disc_map/disc_map.h"
 #include "core/libraries/kernel/thread_management.h"
-#include "core/libraries/libc/libc.h"
 #include "core/libraries/libc_internal/libc_internal.h"
 #include "core/libraries/libs.h"
+#include "core/libraries/ngs2/ngs2.h"
 #include "core/libraries/rtc/rtc.h"
 #include "core/libraries/videoout/video_out.h"
 #include "core/linker.h"
@@ -31,9 +32,6 @@
 Frontend::WindowSDL* g_window = nullptr;
 
 namespace Core {
-
-static constexpr s32 WindowWidth = 1280;
-static constexpr s32 WindowHeight = 720;
 
 Emulator::Emulator() {
     // Read configuration file.
@@ -49,6 +47,21 @@ Emulator::Emulator() {
     Common::Log::Initialize();
     Common::Log::Start();
     LOG_INFO(Loader, "Starting shadps4 emulator v{} ", Common::VERSION);
+    LOG_INFO(Loader, "Revision {}", Common::g_scm_rev);
+    LOG_INFO(Loader, "Branch {}", Common::g_scm_branch);
+    LOG_INFO(Loader, "Description {}", Common::g_scm_desc);
+
+    LOG_INFO(Config, "General isNeo: {}", Config::isNeoMode());
+    LOG_INFO(Config, "GPU isNullGpu: {}", Config::nullGpu());
+    LOG_INFO(Config, "GPU shouldDumpShaders: {}", Config::dumpShaders());
+    LOG_INFO(Config, "GPU shouldDumpPM4: {}", Config::dumpPM4());
+    LOG_INFO(Config, "GPU vblankDivider: {}", Config::vblankDiv());
+    LOG_INFO(Config, "Vulkan gpuId: {}", Config::getGpuId());
+    LOG_INFO(Config, "Vulkan vkValidation: {}", Config::vkValidationEnabled());
+    LOG_INFO(Config, "Vulkan vkValidationSync: {}", Config::vkValidationSyncEnabled());
+    LOG_INFO(Config, "Vulkan vkValidationGpu: {}", Config::vkValidationGpuEnabled());
+    LOG_INFO(Config, "Vulkan rdocEnable: {}", Config::isRdocEnabled());
+    LOG_INFO(Config, "Vulkan rdocMarkersEnable: {}", Config::isMarkersEnabled());
 
     // Defer until after logging is initialized.
     memory = Core::Memory::Instance();
@@ -86,8 +99,11 @@ void Emulator::Run(const std::filesystem::path& file) {
                 app_version = param_sfo->GetString("APP_VER");
                 LOG_INFO(Loader, "Fw: {:#x} App Version: {}", fw_version, app_version);
             } else if (entry.path().filename() == "playgo-chunk.dat") {
-                auto* playgo = Common::Singleton<PlaygoChunk>::Instance();
-                playgo->Open(sce_sys_folder.string() + "/playgo-chunk.dat");
+                auto* playgo = Common::Singleton<PlaygoFile>::Instance();
+                auto filepath = sce_sys_folder / "playgo-chunk.dat";
+                if (!playgo->Open(filepath)) {
+                    LOG_ERROR(Loader, "PlayGo: unable to open file");
+                }
             } else if (entry.path().filename() == "pic0.png" ||
                        entry.path().filename() == "pic1.png") {
                 auto* splash = Common::Singleton<Splash>::Instance();
@@ -100,10 +116,17 @@ void Emulator::Run(const std::filesystem::path& file) {
             }
         }
     }
-    std::string game_title = fmt::format("{} - {} <{}>", id, title, app_version);
 
-    window =
-        std::make_unique<Frontend::WindowSDL>(WindowWidth, WindowHeight, controller, game_title);
+    std::string game_title = fmt::format("{} - {} <{}>", id, title, app_version);
+    std::string window_title = "";
+    if (Common::isRelease) {
+        window_title = fmt::format("shadPS4 v{} | {}", Common::VERSION, game_title);
+    } else {
+        window_title =
+            fmt::format("shadPS4 v{} {} | {}", Common::VERSION, Common::g_scm_desc, game_title);
+    }
+    window = std::make_unique<Frontend::WindowSDL>(
+        Config::getScreenWidth(), Config::getScreenHeight(), controller, window_title);
 
     g_window = window.get();
 
@@ -117,6 +140,7 @@ void Emulator::Run(const std::filesystem::path& file) {
         std::filesystem::create_directory(mount_temp_dir);
     }
     mnt->Mount(mount_temp_dir, "/temp0"); // called in app_content ==> stat/mkdir
+    mnt->Mount(mount_temp_dir, "/temp");
 
     const auto& mount_download_dir =
         Common::FS::GetUserPath(Common::FS::PathType::DownloadDir) / id;
@@ -141,22 +165,13 @@ void Emulator::Run(const std::filesystem::path& file) {
     // check if we have system modules to load
     LoadSystemModules(file);
 
-    // Check if there is a libc.prx in sce_module folder
-    bool found = false;
-    if (Config::isLleLibc()) {
-        std::filesystem::path sce_module_folder = file.parent_path() / "sce_module";
-        if (std::filesystem::is_directory(sce_module_folder)) {
-            for (const auto& entry : std::filesystem::directory_iterator(sce_module_folder)) {
-                if (entry.path().filename() == "libc.prx") {
-                    found = true;
-                }
-                LOG_INFO(Loader, "Loading {}", entry.path().string().c_str());
-                linker->LoadModule(entry.path());
-            }
+    // Load all prx from game's sce_module folder
+    std::filesystem::path sce_module_folder = file.parent_path() / "sce_module";
+    if (std::filesystem::is_directory(sce_module_folder)) {
+        for (const auto& entry : std::filesystem::directory_iterator(sce_module_folder)) {
+            LOG_INFO(Loader, "Loading {}", entry.path().string().c_str());
+            linker->LoadModule(entry.path());
         }
-    }
-    if (!found) {
-        Libraries::LibC::libcSymbolsRegister(&linker->GetHLESymbols());
     }
 
     // start execution
@@ -171,8 +186,8 @@ void Emulator::Run(const std::filesystem::path& file) {
 }
 
 void Emulator::LoadSystemModules(const std::filesystem::path& file) {
-    constexpr std::array<SysModules, 10> ModulesToLoad{
-        {{"libSceNgs2.sprx", nullptr},
+    constexpr std::array<SysModules, 9> ModulesToLoad{
+        {{"libSceNgs2.sprx", &Libraries::Ngs2::RegisterlibSceNgs2},
          {"libSceFiber.sprx", nullptr},
          {"libSceUlt.sprx", nullptr},
          {"libSceJson.sprx", nullptr},
@@ -180,8 +195,7 @@ void Emulator::LoadSystemModules(const std::filesystem::path& file) {
          {"libSceLibcInternal.sprx", &Libraries::LibcInternal::RegisterlibSceLibcInternal},
          {"libSceDiscMap.sprx", &Libraries::DiscMap::RegisterlibSceDiscMap},
          {"libSceRtc.sprx", &Libraries::Rtc::RegisterlibSceRtc},
-         {"libSceJpegEnc.sprx", nullptr},
-         {"libSceJson2.sprx", nullptr}},
+         {"libSceJpegEnc.sprx", nullptr}},
     };
 
     std::vector<std::filesystem::path> found_modules;

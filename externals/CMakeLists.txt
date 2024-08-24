@@ -25,11 +25,6 @@ if (NOT TARGET fmt::fmt)
     add_subdirectory(fmt)
 endif()
 
-# Discord-RPC
-set(BUILD_EXAMPLES OFF CACHE BOOL "")
-add_subdirectory(discord-rpc)
-target_include_directories(discord-rpc INTERFACE ./discord-rpc/include)
-
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND MSVC)
     # If it is clang and MSVC we will add a static lib
     # CryptoPP
@@ -45,6 +40,12 @@ else()
         file(COPY cryptopp DESTINATION cryptopp FILES_MATCHING PATTERN "*.h")
         target_include_directories(cryptopp INTERFACE "${CMAKE_CURRENT_BINARY_DIR}/cryptopp")
     endif()
+endif()
+
+if (NOT TARGET FFmpeg::ffmpeg)
+    set(ARCHITECTURE "x86_64")
+    add_subdirectory(ffmpeg-core)
+    add_library(FFmpeg::ffmpeg ALIAS ffmpeg)
 endif()
 
 # Zlib-Ng

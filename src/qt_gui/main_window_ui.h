@@ -1,35 +1,18 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-/********************************************************************************
-** Form generated from reading UI file 'main_window.ui'
-**
-** Created by: Qt User Interface Compiler version 6.6.1
-**
-** WARNING! All changes made in this file will be lost when recompiling UI file!
-********************************************************************************/
+#pragma once
 
-#ifndef MAIN_WINDOW_UI_H
-#define MAIN_WINDOW_UI_H
-
-#include <QtCore/QVariant>
-#include <QtGui/QAction>
-#include <QtWidgets/QApplication>
-#include <QtWidgets/QHBoxLayout>
-#include <QtWidgets/QLineEdit>
-#include <QtWidgets/QMainWindow>
-#include <QtWidgets/QMenu>
-#include <QtWidgets/QMenuBar>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QSlider>
-#include <QtWidgets/QToolBar>
-#include <QtWidgets/QWidget>
+#include <QMenuBar>
+#include <QPushButton>
+#include <QToolBar>
 
 QT_BEGIN_NAMESPACE
 
 class Ui_MainWindow {
 public:
     QAction* bootInstallPkgAct;
+    QAction* bootGameAct;
     QAction* addElfFolderAct;
     QAction* exitAct;
     QAction* showGameListAct;
@@ -44,8 +27,10 @@ public:
     QAction* gameInstallPathAct;
     QAction* dumpGameListAct;
     QAction* pkgViewerAct;
-    QAction* setThemeLight;
+    QAction* aboutAct;
+    QAction* configureAct;
     QAction* setThemeDark;
+    QAction* setThemeLight;
     QAction* setThemeGreen;
     QAction* setThemeBlue;
     QAction* setThemeViolet;
@@ -69,6 +54,7 @@ public:
     QMenu* menuSettings;
     QMenu* menuUtils;
     QMenu* menuThemes;
+    QMenu* menuAbout;
     QToolBar* toolBar;
 
     void setupUi(QMainWindow* MainWindow) {
@@ -76,7 +62,7 @@ public:
             MainWindow->setObjectName("MainWindow");
         // MainWindow->resize(1280, 720);
         QIcon icon;
-        icon.addFile(QString::fromUtf8(":/images/shadps4.ico"), QSize(), QIcon::Normal, QIcon::Off);
+        icon.addFile(QString::fromUtf8(":images/shadps4.ico"), QSize(), QIcon::Normal, QIcon::Off);
         MainWindow->setWindowIcon(icon);
         QSizePolicy sizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         sizePolicy.setHorizontalStretch(0);
@@ -92,8 +78,12 @@ public:
         bootInstallPkgAct = new QAction(MainWindow);
         bootInstallPkgAct->setObjectName("bootInstallPkgAct");
         bootInstallPkgAct->setIcon(QIcon(":images/file_icon.png"));
+        bootGameAct = new QAction(MainWindow);
+        bootGameAct->setObjectName("bootGameAct");
+        bootGameAct->setIcon(QIcon(":images/play_icon.png"));
         addElfFolderAct = new QAction(MainWindow);
         addElfFolderAct->setObjectName("addElfFolderAct");
+        addElfFolderAct->setIcon(QIcon(":images/folder_icon.png"));
         exitAct = new QAction(MainWindow);
         exitAct->setObjectName("exitAct");
         exitAct->setIcon(QIcon(":images/exit_icon.png"));
@@ -136,13 +126,19 @@ public:
         pkgViewerAct->setObjectName("pkgViewer");
         pkgViewerAct->setObjectName("pkgViewer");
         pkgViewerAct->setIcon(QIcon(":images/file_icon.png"));
-        setThemeLight = new QAction(MainWindow);
-        setThemeLight->setObjectName("setThemeLight");
-        setThemeLight->setCheckable(true);
-        setThemeLight->setChecked(true);
+        aboutAct = new QAction(MainWindow);
+        aboutAct->setObjectName("aboutAct");
+        aboutAct->setIcon(QIcon(":images/about_icon.png"));
+        configureAct = new QAction(MainWindow);
+        configureAct->setObjectName("configureAct");
+        configureAct->setIcon(QIcon(":images/settings_icon.png"));
         setThemeDark = new QAction(MainWindow);
         setThemeDark->setObjectName("setThemeDark");
         setThemeDark->setCheckable(true);
+        setThemeDark->setChecked(true);
+        setThemeLight = new QAction(MainWindow);
+        setThemeLight->setObjectName("setThemeLight");
+        setThemeLight->setCheckable(true);
         setThemeGreen = new QAction(MainWindow);
         setThemeGreen->setObjectName("setThemeGreen");
         setThemeGreen->setCheckable(true);
@@ -242,6 +238,8 @@ public:
         menuThemes = new QMenu(menuView);
         menuThemes->setObjectName("menuThemes");
         menuThemes->setIcon(QIcon(":images/themes_icon.png"));
+        menuAbout = new QMenu(menuBar);
+        menuAbout->setObjectName("menuAbout");
         MainWindow->setMenuBar(menuBar);
         toolBar = new QToolBar(MainWindow);
         toolBar->setObjectName("toolBar");
@@ -250,7 +248,9 @@ public:
         menuBar->addAction(menuFile->menuAction());
         menuBar->addAction(menuView->menuAction());
         menuBar->addAction(menuSettings->menuAction());
+        menuBar->addAction(menuAbout->menuAction());
         menuFile->addAction(bootInstallPkgAct);
+        menuFile->addAction(bootGameAct);
         menuFile->addAction(addElfFolderAct);
         menuFile->addSeparator();
         menuFile->addAction(menuRecent->menuAction());
@@ -274,10 +274,12 @@ public:
         menuGame_List_Mode->addAction(setlistModeListAct);
         menuGame_List_Mode->addAction(setlistModeGridAct);
         menuGame_List_Mode->addAction(setlistElfAct);
+        menuSettings->addAction(configureAct);
         menuSettings->addAction(gameInstallPathAct);
         menuSettings->addAction(menuUtils->menuAction());
         menuUtils->addAction(dumpGameListAct);
         menuUtils->addAction(pkgViewerAct);
+        menuAbout->addAction(aboutAct);
 
         retranslateUi(MainWindow);
 
@@ -285,11 +287,14 @@ public:
     } // setupUi
 
     void retranslateUi(QMainWindow* MainWindow) {
-        MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "Shadps4", nullptr));
+        MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "shadPS4", nullptr));
         addElfFolderAct->setText(
             QCoreApplication::translate("MainWindow", "Open/Add Elf Folder", nullptr));
         bootInstallPkgAct->setText(
             QCoreApplication::translate("MainWindow", "Install Packages (PKG)", nullptr));
+        bootGameAct->setText(QCoreApplication::translate("MainWindow", "Boot Game", nullptr));
+        aboutAct->setText(QCoreApplication::translate("MainWindow", "About shadPS4", nullptr));
+        configureAct->setText(QCoreApplication::translate("MainWindow", "Configure...", nullptr));
 #if QT_CONFIG(tooltip)
         bootInstallPkgAct->setToolTip(QCoreApplication::translate(
             "MainWindow", "Install application from a .pkg file", nullptr));
@@ -297,7 +302,7 @@ public:
         menuRecent->setTitle(QCoreApplication::translate("MainWindow", "Recent Games", nullptr));
         exitAct->setText(QCoreApplication::translate("MainWindow", "Exit", nullptr));
 #if QT_CONFIG(tooltip)
-        exitAct->setToolTip(QCoreApplication::translate("MainWindow", "Exit Shadps4", nullptr));
+        exitAct->setToolTip(QCoreApplication::translate("MainWindow", "Exit shadPS4", nullptr));
 #endif // QT_CONFIG(tooltip)
 #if QT_CONFIG(statustip)
         exitAct->setStatusTip(
@@ -332,8 +337,9 @@ public:
         menuSettings->setTitle(QCoreApplication::translate("MainWindow", "Settings", nullptr));
         menuUtils->setTitle(QCoreApplication::translate("MainWindow", "Utils", nullptr));
         menuThemes->setTitle(QCoreApplication::translate("MainWindow", "Themes", nullptr));
-        setThemeLight->setText(QCoreApplication::translate("MainWindow", "Light", nullptr));
+        menuAbout->setTitle(QCoreApplication::translate("MainWindow", "About", nullptr));
         setThemeDark->setText(QCoreApplication::translate("MainWindow", "Dark", nullptr));
+        setThemeLight->setText(QCoreApplication::translate("MainWindow", "Light", nullptr));
         setThemeGreen->setText(QCoreApplication::translate("MainWindow", "Green", nullptr));
         setThemeBlue->setText(QCoreApplication::translate("MainWindow", "Blue", nullptr));
         setThemeViolet->setText(QCoreApplication::translate("MainWindow", "Violet", nullptr));
@@ -346,5 +352,3 @@ class MainWindow : public Ui_MainWindow {};
 } // namespace Ui
 
 QT_END_NAMESPACE
-
-#endif // MAIN_WINDOW_UI_H

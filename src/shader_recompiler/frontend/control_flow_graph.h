@@ -3,15 +3,17 @@
 
 #pragma once
 
+#include <algorithm>
 #include <span>
 #include <string>
 #include <boost/container/small_vector.hpp>
 #include <boost/intrusive/set.hpp>
 
+#include "common/assert.h"
+#include "common/object_pool.h"
 #include "common/types.h"
 #include "shader_recompiler/frontend/instruction.h"
 #include "shader_recompiler/ir/condition.h"
-#include "shader_recompiler/object_pool.h"
 
 namespace Shader::Gcn {
 
@@ -49,17 +51,34 @@ class CFG {
     using Label = u32;
 
 public:
-    explicit CFG(ObjectPool<Block>& block_pool, std::span<const GcnInst> inst_list);
+    explicit CFG(Common::ObjectPool<Block>& block_pool, std::span<const GcnInst> inst_list);
 
     [[nodiscard]] std::string Dot() const;
 
 private:
     void EmitLabels();
+    void EmitDivergenceLabels();
     void EmitBlocks();
     void LinkBlocks();
 
+    void AddLabel(Label address) {
+        const auto it = std::ranges::find(labels, address);
+        if (it == labels.end()) {
+            labels.push_back(address);
+        }
+    };
+
+    size_t GetIndex(Label label) {
+        if (label == 0) {
+            return 0ULL;
+        }
+        const auto it_index = std::ranges::lower_bound(index_to_pc, label);
+        ASSERT(it_index != index_to_pc.end() || label > index_to_pc.back());
+        return std::distance(index_to_pc.begin(), it_index);
+    };
+
 public:
-    ObjectPool<Block>& block_pool;
+    Common::ObjectPool<Block>& block_pool;
     std::span<const GcnInst> inst_list;
     std::vector<u32> index_to_pc;
     boost::container::small_vector<Label, 16> labels;

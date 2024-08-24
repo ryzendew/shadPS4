@@ -125,6 +125,7 @@ public:
     void V_ADD_F32(const GcnInst& inst);
     void V_CVT_OFF_F32_I4(const GcnInst& inst);
     void V_MED3_F32(const GcnInst& inst);
+    void V_MED3_I32(const GcnInst& inst);
     void V_FLOOR_F32(const GcnInst& inst);
     void V_SUB_F32(const GcnInst& inst);
     void V_RCP_F32(const GcnInst& inst);
@@ -159,6 +160,7 @@ public:
     void V_SUB_I32(const GcnInst& inst);
     void V_LSHR_B32(const GcnInst& inst);
     void V_ASHRREV_I32(const GcnInst& inst);
+    void V_ASHR_I32(const GcnInst& inst);
     void V_MAD_U32_U24(const GcnInst& inst);
     void V_RNDNE_F32(const GcnInst& inst);
     void V_BCNT_U32_B32(const GcnInst& inst);
@@ -184,7 +186,8 @@ public:
 
     // Vector Memory
     void BUFFER_LOAD_FORMAT(u32 num_dwords, bool is_typed, bool is_format, const GcnInst& inst);
-    void BUFFER_STORE_FORMAT(u32 num_dwords, bool is_typed, const GcnInst& inst);
+    void BUFFER_STORE_FORMAT(u32 num_dwords, bool is_typed, bool is_format, const GcnInst& inst);
+    void BUFFER_ATOMIC(AtomicOp op, const GcnInst& inst);
 
     // Vector interpolation
     void V_INTERP_P2_F32(const GcnInst& inst);
@@ -194,6 +197,9 @@ public:
     void DS_SWIZZLE_B32(const GcnInst& inst);
     void DS_READ(int bit_size, bool is_signed, bool is_pair, const GcnInst& inst);
     void DS_WRITE(int bit_size, bool is_signed, bool is_pair, const GcnInst& inst);
+    void DS_ADD_U32(const GcnInst& inst, bool rtn);
+    void DS_MIN_U32(const GcnInst& inst, bool rtn);
+    void DS_MAX_U32(const GcnInst& inst, bool rtn);
     void V_READFIRSTLANE_B32(const GcnInst& inst);
     void V_READLANE_B32(const GcnInst& inst);
     void V_WRITELANE_B32(const GcnInst& inst);
@@ -209,10 +215,10 @@ public:
     void IMAGE_ATOMIC(AtomicOp op, const GcnInst& inst);
 
 private:
-    template <typename T = IR::U32F32>
-    [[nodiscard]] T GetSrc(const InstOperand& operand, bool flt_zero = false);
-    template <typename T = IR::U64F64>
-    [[nodiscard]] T GetSrc64(const InstOperand& operand, bool flt_zero = false);
+    template <typename T = IR::U32>
+    [[nodiscard]] T GetSrc(const InstOperand& operand);
+    template <typename T = IR::U64>
+    [[nodiscard]] T GetSrc64(const InstOperand& operand);
     void SetDst(const InstOperand& operand, const IR::U32F32& value);
     void SetDst64(const InstOperand& operand, const IR::U64F64& value_raw);
 

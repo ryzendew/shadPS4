@@ -16,8 +16,8 @@ static u32 screenHeight = 720;
 static s32 gpuId = -1; // Vulkan physical device index. Set to negative for auto select
 static std::string logFilter;
 static std::string logType = "async";
+static std::string userName = "shadPS4";
 static bool isDebugDump = false;
-static bool isLibc = true;
 static bool isShowSplash = false;
 static bool isNullGpu = false;
 static bool shouldDumpShaders = false;
@@ -25,7 +25,9 @@ static bool shouldDumpPM4 = false;
 static u32 vblankDivider = 1;
 static bool vkValidation = false;
 static bool vkValidationSync = false;
+static bool vkValidationGpu = false;
 static bool rdocEnable = false;
+static bool rdocMarkersEnable = false;
 // Gui
 std::string settings_install_dir = "";
 u32 main_window_geometry_x = 400;
@@ -43,10 +45,8 @@ u32 m_window_size_H = 720;
 std::vector<std::string> m_pkg_viewer;
 std::vector<std::string> m_elf_viewer;
 std::vector<std::string> m_recent_files;
-
-bool isLleLibc() {
-    return isLibc;
-}
+// Settings
+u32 m_language = 1; // english
 
 bool isNeoMode() {
     return isNeo;
@@ -76,6 +76,10 @@ std::string getLogType() {
     return logType;
 }
 
+std::string getUserName() {
+    return userName;
+}
+
 bool debugDump() {
     return isDebugDump;
 }
@@ -100,6 +104,10 @@ bool isRdocEnabled() {
     return rdocEnable;
 }
 
+bool isMarkersEnabled() {
+    return rdocMarkersEnable;
+}
+
 u32 vblankDiv() {
     return vblankDivider;
 }
@@ -110,6 +118,82 @@ bool vkValidationEnabled() {
 
 bool vkValidationSyncEnabled() {
     return vkValidationSync;
+}
+
+bool vkValidationGpuEnabled() {
+    return vkValidationGpu;
+}
+
+void setGpuId(s32 selectedGpuId) {
+    gpuId = selectedGpuId;
+}
+
+void setScreenWidth(u32 width) {
+    screenWidth = width;
+}
+
+void setScreenHeight(u32 height) {
+    screenHeight = height;
+}
+
+void setDebugDump(bool enable) {
+    isDebugDump = enable;
+}
+
+void setShowSplash(bool enable) {
+    isShowSplash = enable;
+}
+
+void setNullGpu(bool enable) {
+    isNullGpu = enable;
+}
+
+void setDumpShaders(bool enable) {
+    shouldDumpShaders = enable;
+}
+
+void setDumpPM4(bool enable) {
+    shouldDumpPM4 = enable;
+}
+
+void setVkValidation(bool enable) {
+    vkValidation = enable;
+}
+
+void setVkSyncValidation(bool enable) {
+    vkValidationSync = enable;
+}
+
+void setRdocEnabled(bool enable) {
+    rdocEnable = enable;
+}
+
+void setVblankDiv(u32 value) {
+    vblankDivider = value;
+}
+
+void setFullscreenMode(bool enable) {
+    isFullscreen = enable;
+}
+
+void setLanguage(u32 language) {
+    m_language = language;
+}
+
+void setNeoMode(bool enable) {
+    isNeo = enable;
+}
+
+void setLogType(const std::string& type) {
+    logType = type;
+}
+
+void setLogFilter(const std::string& type) {
+    logFilter = type;
+}
+
+void setUserName(const std::string& type) {
+    userName = type;
 }
 
 void setMainWindowGeometry(u32 x, u32 y, u32 w, u32 h) {
@@ -145,15 +229,15 @@ void setMainWindowWidth(u32 width) {
 void setMainWindowHeight(u32 height) {
     m_window_size_H = height;
 }
-void setPkgViewer(std::vector<std::string> pkgList) {
+void setPkgViewer(const std::vector<std::string>& pkgList) {
     m_pkg_viewer.resize(pkgList.size());
     m_pkg_viewer = pkgList;
 }
-void setElfViewer(std::vector<std::string> elfList) {
+void setElfViewer(const std::vector<std::string>& elfList) {
     m_elf_viewer.resize(elfList.size());
     m_elf_viewer = elfList;
 }
-void setRecentFiles(std::vector<std::string> recentFiles) {
+void setRecentFiles(const std::vector<std::string>& recentFiles) {
     m_recent_files.resize(recentFiles.size());
     m_recent_files = recentFiles;
 }
@@ -207,6 +291,9 @@ std::vector<std::string> getRecentFiles() {
     return m_recent_files;
 }
 
+u32 GetLanguage() {
+    return m_language;
+}
 void load(const std::filesystem::path& path) {
     // If the configuration file does not exist, create it and return
     std::error_code error;
@@ -223,90 +310,79 @@ void load(const std::filesystem::path& path) {
         fmt::print("Got exception trying to load config file. Exception: {}\n", ex.what());
         return;
     }
-
     if (data.contains("General")) {
-        auto generalResult = toml::expect<toml::value>(data.at("General"));
-        if (generalResult.is_ok()) {
-            auto general = generalResult.unwrap();
+        const toml::value& general = data.at("General");
 
-            isNeo = toml::find_or<toml::boolean>(general, "isPS4Pro", false);
-            isFullscreen = toml::find_or<toml::boolean>(general, "Fullscreen", false);
-            logFilter = toml::find_or<toml::string>(general, "logFilter", "");
-            logType = toml::find_or<toml::string>(general, "logType", "sync");
-            isShowSplash = toml::find_or<toml::boolean>(general, "showSplash", true);
-        }
+        isNeo = toml::find_or<bool>(general, "isPS4Pro", false);
+        isFullscreen = toml::find_or<bool>(general, "Fullscreen", false);
+        logFilter = toml::find_or<std::string>(general, "logFilter", "");
+        logType = toml::find_or<std::string>(general, "logType", "sync");
+        userName = toml::find_or<std::string>(general, "userName", "shadPS4");
+        isShowSplash = toml::find_or<bool>(general, "showSplash", true);
     }
+
     if (data.contains("GPU")) {
-        auto gpuResult = toml::expect<toml::value>(data.at("GPU"));
-        if (gpuResult.is_ok()) {
-            auto gpu = gpuResult.unwrap();
+        const toml::value& gpu = data.at("GPU");
 
-            screenWidth = toml::find_or<toml::integer>(gpu, "screenWidth", screenWidth);
-            screenHeight = toml::find_or<toml::integer>(gpu, "screenHeight", screenHeight);
-            isNullGpu = toml::find_or<toml::boolean>(gpu, "nullGpu", false);
-            shouldDumpShaders = toml::find_or<toml::boolean>(gpu, "dumpShaders", false);
-            shouldDumpPM4 = toml::find_or<toml::boolean>(gpu, "dumpPM4", false);
-            vblankDivider = toml::find_or<toml::integer>(gpu, "vblankDivider", 1);
-        }
+        screenWidth = toml::find_or<int>(gpu, "screenWidth", screenWidth);
+        screenHeight = toml::find_or<int>(gpu, "screenHeight", screenHeight);
+        isNullGpu = toml::find_or<bool>(gpu, "nullGpu", false);
+        shouldDumpShaders = toml::find_or<bool>(gpu, "dumpShaders", false);
+        shouldDumpPM4 = toml::find_or<bool>(gpu, "dumpPM4", false);
+        vblankDivider = toml::find_or<int>(gpu, "vblankDivider", 1);
     }
+
     if (data.contains("Vulkan")) {
-        const auto vkResult = toml::expect<toml::value>(data.at("Vulkan"));
-        if (vkResult.is_ok()) {
-            auto vk = vkResult.unwrap();
+        const toml::value& vk = data.at("Vulkan");
 
-            gpuId = toml::find_or<toml::integer>(vk, "gpuId", 0);
-            vkValidation = toml::find_or<toml::boolean>(vk, "validation", true);
-            vkValidationSync = toml::find_or<toml::boolean>(vk, "validation_sync", true);
-            rdocEnable = toml::find_or<toml::boolean>(vk, "rdocEnable", false);
-        }
+        gpuId = toml::find_or<int>(vk, "gpuId", -1);
+        vkValidation = toml::find_or<bool>(vk, "validation", false);
+        vkValidationSync = toml::find_or<bool>(vk, "validation_sync", false);
+        vkValidationGpu = toml::find_or<bool>(vk, "validation_gpu", true);
+        rdocEnable = toml::find_or<bool>(vk, "rdocEnable", false);
+        rdocMarkersEnable = toml::find_or<bool>(vk, "rdocMarkersEnable", false);
     }
+
     if (data.contains("Debug")) {
-        auto debugResult = toml::expect<toml::value>(data.at("Debug"));
-        if (debugResult.is_ok()) {
-            auto debug = debugResult.unwrap();
+        const toml::value& debug = data.at("Debug");
 
-            isDebugDump = toml::find_or<toml::boolean>(debug, "DebugDump", false);
-        }
+        isDebugDump = toml::find_or<bool>(debug, "DebugDump", false);
     }
-    if (data.contains("LLE")) {
-        auto lleResult = toml::expect<toml::value>(data.at("LLE"));
-        if (lleResult.is_ok()) {
-            auto lle = lleResult.unwrap();
 
-            isLibc = toml::find_or<toml::boolean>(lle, "libc", true);
-        }
-    }
     if (data.contains("GUI")) {
-        auto guiResult = toml::expect<toml::value>(data.at("GUI"));
-        if (guiResult.is_ok()) {
-            auto gui = guiResult.unwrap();
+        const toml::value& gui = data.at("GUI");
 
-            m_icon_size = toml::find_or<toml::integer>(gui, "iconSize", 0);
-            m_icon_size_grid = toml::find_or<toml::integer>(gui, "iconSizeGrid", 0);
-            m_slider_pos = toml::find_or<toml::integer>(gui, "sliderPos", 0);
-            m_slider_pos_grid = toml::find_or<toml::integer>(gui, "sliderPosGrid", 0);
-            mw_themes = toml::find_or<toml::integer>(gui, "theme", 0);
-            m_window_size_W = toml::find_or<toml::integer>(gui, "mw_width", 0);
-            m_window_size_H = toml::find_or<toml::integer>(gui, "mw_height", 0);
-            settings_install_dir = toml::find_or<toml::string>(gui, "installDir", "");
-            main_window_geometry_x = toml::find_or<toml::integer>(gui, "geometry_x", 0);
-            main_window_geometry_y = toml::find_or<toml::integer>(gui, "geometry_y", 0);
-            main_window_geometry_w = toml::find_or<toml::integer>(gui, "geometry_w", 0);
-            main_window_geometry_h = toml::find_or<toml::integer>(gui, "geometry_h", 0);
-            m_pkg_viewer = toml::find_or<std::vector<std::string>>(gui, "pkgDirs", {});
-            m_elf_viewer = toml::find_or<std::vector<std::string>>(gui, "elfDirs", {});
-            m_recent_files = toml::find_or<std::vector<std::string>>(gui, "recentFiles", {});
-            m_table_mode = toml::find_or<toml::integer>(gui, "gameTableMode", 0);
-        }
+        m_icon_size = toml::find_or<int>(gui, "iconSize", 0);
+        m_icon_size_grid = toml::find_or<int>(gui, "iconSizeGrid", 0);
+        m_slider_pos = toml::find_or<int>(gui, "sliderPos", 0);
+        m_slider_pos_grid = toml::find_or<int>(gui, "sliderPosGrid", 0);
+        mw_themes = toml::find_or<int>(gui, "theme", 0);
+        m_window_size_W = toml::find_or<int>(gui, "mw_width", 0);
+        m_window_size_H = toml::find_or<int>(gui, "mw_height", 0);
+        settings_install_dir = toml::find_or<std::string>(gui, "installDir", "");
+        main_window_geometry_x = toml::find_or<int>(gui, "geometry_x", 0);
+        main_window_geometry_y = toml::find_or<int>(gui, "geometry_y", 0);
+        main_window_geometry_w = toml::find_or<int>(gui, "geometry_w", 0);
+        main_window_geometry_h = toml::find_or<int>(gui, "geometry_h", 0);
+        m_pkg_viewer = toml::find_or<std::vector<std::string>>(gui, "pkgDirs", {});
+        m_elf_viewer = toml::find_or<std::vector<std::string>>(gui, "elfDirs", {});
+        m_recent_files = toml::find_or<std::vector<std::string>>(gui, "recentFiles", {});
+        m_table_mode = toml::find_or<int>(gui, "gameTableMode", 0);
+    }
+
+    if (data.contains("Settings")) {
+        const toml::value& settings = data.at("Settings");
+
+        m_language = toml::find_or<int>(settings, "consoleLanguage", 1);
     }
 }
 void save(const std::filesystem::path& path) {
-    toml::basic_value<toml::preserve_comments> data;
+    toml::value data;
 
     std::error_code error;
     if (std::filesystem::exists(path, error)) {
         try {
-            data = toml::parse<toml::preserve_comments>(path);
+            data = toml::parse(path);
         } catch (const std::exception& ex) {
             fmt::print("Exception trying to parse config file. Exception: {}\n", ex.what());
             return;
@@ -323,6 +399,7 @@ void save(const std::filesystem::path& path) {
     data["General"]["Fullscreen"] = isFullscreen;
     data["General"]["logFilter"] = logFilter;
     data["General"]["logType"] = logType;
+    data["General"]["userName"] = userName;
     data["General"]["showSplash"] = isShowSplash;
     data["GPU"]["screenWidth"] = screenWidth;
     data["GPU"]["screenHeight"] = screenHeight;
@@ -333,9 +410,10 @@ void save(const std::filesystem::path& path) {
     data["Vulkan"]["gpuId"] = gpuId;
     data["Vulkan"]["validation"] = vkValidation;
     data["Vulkan"]["validation_sync"] = vkValidationSync;
+    data["Vulkan"]["validation_gpu"] = vkValidationGpu;
     data["Vulkan"]["rdocEnable"] = rdocEnable;
+    data["Vulkan"]["rdocMarkersEnable"] = rdocMarkersEnable;
     data["Debug"]["DebugDump"] = isDebugDump;
-    data["LLE"]["libc"] = isLibc;
     data["GUI"]["theme"] = mw_themes;
     data["GUI"]["iconSize"] = m_icon_size;
     data["GUI"]["sliderPos"] = m_slider_pos;
@@ -353,8 +431,31 @@ void save(const std::filesystem::path& path) {
     data["GUI"]["elfDirs"] = m_elf_viewer;
     data["GUI"]["recentFiles"] = m_recent_files;
 
+    data["Settings"]["consoleLanguage"] = m_language;
+
     std::ofstream file(path, std::ios::out);
     file << data;
     file.close();
 }
+
+void setDefaultValues() {
+    isNeo = false;
+    isFullscreen = false;
+    screenWidth = 1280;
+    screenHeight = 720;
+    logFilter = "";
+    logType = "async";
+    userName = "shadPS4";
+    isDebugDump = false;
+    isShowSplash = false;
+    isNullGpu = false;
+    shouldDumpShaders = false;
+    shouldDumpPM4 = false;
+    vblankDivider = 1;
+    vkValidation = false;
+    rdocEnable = false;
+    m_language = 1;
+    gpuId = -1;
+}
+
 } // namespace Config

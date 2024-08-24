@@ -77,8 +77,11 @@ struct BufferResource {
     u32 length;
     IR::Type used_types;
     AmdGpu::Buffer inline_cbuf;
-    bool is_storage{false};
-    bool is_instance_data{false};
+    AmdGpu::DataFormat dfmt;
+    AmdGpu::NumberFormat nfmt;
+    bool is_storage{};
+    bool is_instance_data{};
+    bool is_written{};
 
     constexpr AmdGpu::Buffer GetVsharp(const Info& info) const noexcept;
 };
@@ -104,6 +107,19 @@ struct SamplerResource {
     constexpr AmdGpu::Sampler GetSsharp(const Info& info) const noexcept;
 };
 using SamplerResourceList = boost::container::static_vector<SamplerResource, 16>;
+
+struct PushData {
+    static constexpr size_t BufOffsetIndex = 2;
+
+    u32 step0;
+    u32 step1;
+    std::array<u8, 32> buf_offsets;
+
+    void AddOffset(u32 binding, u32 offset) {
+        ASSERT(offset < 256 && binding < buf_offsets.size());
+        buf_offsets[binding] = offset;
+    }
+};
 
 struct Info {
     struct VsInput {
@@ -164,6 +180,7 @@ struct Info {
     SamplerResourceList samplers;
 
     std::array<u32, 3> workgroup_size{};
+    std::array<bool, 3> tgid_enable;
 
     u32 num_user_data;
     u32 num_input_vgprs;
@@ -179,9 +196,8 @@ struct Info {
     bool has_image_query{};
     bool uses_group_quad{};
     bool uses_shared{};
-    bool uses_shared_u8{};
-    bool uses_shared_u16{};
     bool uses_fp16{};
+    bool uses_step_rates{};
     bool translation_failed{}; // indicates that shader has unsupported instructions
 
     template <typename T>
@@ -211,7 +227,7 @@ struct fmt::formatter<Shader::Stage> {
     constexpr auto parse(format_parse_context& ctx) {
         return ctx.begin();
     }
-    auto format(const Shader::Stage& stage, format_context& ctx) const {
+    auto format(const Shader::Stage stage, format_context& ctx) const {
         constexpr static std::array names = {"fs", "vs", "gs", "es", "hs", "ls", "cs"};
         return fmt::format_to(ctx.out(), "{}", names[static_cast<size_t>(stage)]);
     }

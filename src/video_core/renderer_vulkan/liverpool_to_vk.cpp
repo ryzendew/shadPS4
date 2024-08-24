@@ -5,6 +5,8 @@
 #include "video_core/amdgpu/pixel_format.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 
+#include <magic_enum.hpp>
+
 namespace Vulkan::LiverpoolToVK {
 
 using DepthBuffer = Liverpool::DepthBuffer;
@@ -81,6 +83,8 @@ vk::PrimitiveTopology PrimitiveType(Liverpool::PrimitiveType type) {
         return vk::PrimitiveTopology::eTriangleListWithAdjacency;
     case Liverpool::PrimitiveType::AdjTriangleStrip:
         return vk::PrimitiveTopology::eTriangleStripWithAdjacency;
+    case Liverpool::PrimitiveType::PatchPrimitive:
+        return vk::PrimitiveTopology::ePatchList;
     case Liverpool::PrimitiveType::QuadList:
         // Needs to generate index buffer on the fly.
         return vk::PrimitiveTopology::eTriangleList;
@@ -327,6 +331,7 @@ std::span<const vk::Format> GetAllFormats() {
         vk::Format::eR16G16Sint,
         vk::Format::eR16G16Snorm,
         vk::Format::eR16Sfloat,
+        vk::Format::eR16Uint,
         vk::Format::eR16Unorm,
         vk::Format::eR32G32B32A32Sfloat,
         vk::Format::eR32G32B32A32Sint,
@@ -339,9 +344,11 @@ std::span<const vk::Format> GetAllFormats() {
         vk::Format::eR32Sint,
         vk::Format::eR32Uint,
         vk::Format::eBc6HUfloatBlock,
+        vk::Format::eBc6HSfloatBlock,
         vk::Format::eR16G16Unorm,
         vk::Format::eR16G16B16A16Sscaled,
         vk::Format::eR16G16Sscaled,
+        vk::Format::eE5B9G9R9UfloatPack32,
     };
     return formats;
 }
@@ -409,10 +416,6 @@ vk::Format SurfaceFormat(AmdGpu::DataFormat data_format, AmdGpu::NumberFormat nu
     if (data_format == AmdGpu::DataFormat::Format16_16 &&
         num_format == AmdGpu::NumberFormat::Unorm) {
         return vk::Format::eR16G16Unorm;
-    }
-    if (data_format == AmdGpu::DataFormat::Format10_11_11 &&
-        num_format == AmdGpu::NumberFormat::Float) {
-        return vk::Format::eB10G11R11UfloatPack32;
     }
     if (data_format == AmdGpu::DataFormat::Format2_10_10_10 &&
         num_format == AmdGpu::NumberFormat::Unorm) {
@@ -543,12 +546,29 @@ vk::Format SurfaceFormat(AmdGpu::DataFormat data_format, AmdGpu::NumberFormat nu
     if (data_format == AmdGpu::DataFormat::FormatBc6 && num_format == AmdGpu::NumberFormat::Unorm) {
         return vk::Format::eBc6HUfloatBlock;
     }
+    if (data_format == AmdGpu::DataFormat::FormatBc6 && num_format == AmdGpu::NumberFormat::Snorm) {
+        return vk::Format::eBc6HSfloatBlock;
+    }
     if (data_format == AmdGpu::DataFormat::Format8_8_8_8 &&
         num_format == AmdGpu::NumberFormat::Sint) {
         return vk::Format::eR8G8B8A8Sint;
     }
     if (data_format == AmdGpu::DataFormat::Format8 && num_format == AmdGpu::NumberFormat::Srgb) {
         return vk::Format::eR8Srgb;
+    }
+    if (data_format == AmdGpu::DataFormat::Format11_11_10 &&
+        num_format == AmdGpu::NumberFormat::Float) {
+        return vk::Format::eB10G11R11UfloatPack32;
+    }
+    if (data_format == AmdGpu::DataFormat::Format16 && num_format == AmdGpu::NumberFormat::Uint) {
+        return vk::Format::eR16Uint;
+    }
+    if (data_format == AmdGpu::DataFormat::Format5_9_9_9 &&
+        num_format == AmdGpu::NumberFormat::Float) {
+        return vk::Format::eE5B9G9R9UfloatPack32;
+    }
+    if (data_format == AmdGpu::DataFormat::Format8 && num_format == AmdGpu::NumberFormat::Snorm) {
+        return vk::Format::eR8Snorm;
     }
     UNREACHABLE_MSG("Unknown data_format={} and num_format={}", u32(data_format), u32(num_format));
 }
@@ -570,6 +590,8 @@ vk::Format AdjustColorBufferFormat(vk::Format base_format,
             return is_vo_surface ? vk::Format::eB8G8R8A8Unorm : vk::Format::eB8G8R8A8Srgb;
         case vk::Format::eB8G8R8A8Srgb:
             return is_vo_surface ? vk::Format::eR8G8B8A8Unorm : vk::Format::eR8G8B8A8Srgb;
+        default:
+            break;
         }
     } else {
         if (is_vo_surface && base_format == vk::Format::eR8G8B8A8Srgb) {
@@ -583,27 +605,29 @@ vk::Format AdjustColorBufferFormat(vk::Format base_format,
 }
 
 vk::Format DepthFormat(DepthBuffer::ZFormat z_format, DepthBuffer::StencilFormat stencil_format) {
-    if (z_format == DepthBuffer::ZFormat::Z32Float &&
-        stencil_format == DepthBuffer::StencilFormat::Stencil8) {
+    using ZFormat = DepthBuffer::ZFormat;
+    using StencilFormat = DepthBuffer::StencilFormat;
+
+    if (z_format == ZFormat::Z32Float && stencil_format == StencilFormat::Stencil8) {
         return vk::Format::eD32SfloatS8Uint;
     }
-    if (z_format == DepthBuffer::ZFormat::Z32Float &&
-        stencil_format == DepthBuffer::StencilFormat::Invalid) {
+    if (z_format == ZFormat::Z32Float && stencil_format == StencilFormat::Invalid) {
         return vk::Format::eD32Sfloat;
     }
-    if (z_format == DepthBuffer::ZFormat::Z16 &&
-        stencil_format == DepthBuffer::StencilFormat::Invalid) {
+    if (z_format == ZFormat::Z16 && stencil_format == StencilFormat::Invalid) {
         return vk::Format::eD16Unorm;
     }
-    if (z_format == DepthBuffer::ZFormat::Z16 &&
-        stencil_format == DepthBuffer::StencilFormat::Stencil8) {
+    if (z_format == ZFormat::Z16 && stencil_format == StencilFormat::Stencil8) {
         return vk::Format::eD16UnormS8Uint;
     }
-    if (z_format == DepthBuffer::ZFormat::Invalid &&
-        stencil_format == DepthBuffer::StencilFormat::Invalid) {
+    if (z_format == ZFormat::Invalid && stencil_format == StencilFormat::Stencil8) {
+        return vk::Format::eD32SfloatS8Uint;
+    }
+    if (z_format == ZFormat::Invalid && stencil_format == StencilFormat::Invalid) {
         return vk::Format::eUndefined;
     }
-    UNREACHABLE();
+    UNREACHABLE_MSG("Unsupported depth/stencil format. depth = {} stencil = {}",
+                    magic_enum::enum_name(z_format), magic_enum::enum_name(stencil_format));
 }
 
 void EmitQuadToTriangleListIndices(u8* out_ptr, u32 num_vertices) {
@@ -681,6 +705,8 @@ vk::SampleCountFlagBits NumSamples(u32 num_samples) {
         return vk::SampleCountFlagBits::e4;
     case 8:
         return vk::SampleCountFlagBits::e8;
+    case 16:
+        return vk::SampleCountFlagBits::e16;
     default:
         UNREACHABLE();
     }
