@@ -28,7 +28,7 @@ class TextureCache {
         using Entry = boost::container::small_vector<ImageId, 16>;
         static constexpr size_t AddressSpaceBits = 39;
         static constexpr size_t FirstLevelBits = 9;
-        static constexpr size_t PageBits = 22;
+        static constexpr size_t PageBits = 20;
     };
     using PageTable = MultiLevelPageTable<Traits>;
 
@@ -61,7 +61,7 @@ public:
     /// Updates image contents if it was modified by CPU.
     void UpdateImage(ImageId image_id, Vulkan::Scheduler* custom_scheduler = nullptr) {
         Image& image = slot_images[image_id];
-        if (False(image.flags & ImageFlagBits::CpuModified)) {
+        if (!image.cpu_modified) {
             return;
         }
         RefreshImage(image, custom_scheduler);
