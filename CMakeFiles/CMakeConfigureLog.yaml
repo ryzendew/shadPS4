@@ -1,0 +1,1236 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineSystem.cmake:205 (message)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      The system is: Linux - 6.15.0-2-cachyos - x86_64
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "/usr/share/cmake/Modules/CMakeDetermineCXXCompiler.cmake:126 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+      Compiler: /usr/bin/c++ 
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
+      
+      The CXX compiler identification is GNU, found in:
+        /home/matt/shadPS4/CMakeFiles/4.0.2-dirty/CompilerIdCXX/a.out
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "/usr/share/cmake/Modules/CMakeDetermineCCompiler.cmake:123 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+      Compiler: /usr/bin/cc 
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      
+      
+      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+      
+      The C compiler identification is GNU, found in:
+        /home/matt/shadPS4/CMakeFiles/4.0.2-dirty/CompilerIdC/a.out
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerId.cmake:1271 (message)"
+      - "/usr/share/cmake/Modules/CMakeDetermineASMCompiler.cmake:139 (CMAKE_DETERMINE_COMPILER_ID_VENDOR)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Checking whether the ASM compiler is GNU using "--version" matched "(GNU assembler)|(GCC)|(Free Software Foundation)":
+      cc (GCC) 15.1.1 20250425
+      Copyright (C) 2025 Free Software Foundation, Inc.
+      This is free software; see the source for copying conditions.  There is NO
+      warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerABI.cmake:83 (try_compile)"
+      - "/usr/share/cmake/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:20 (project)"
+    checks:
+      - "Detecting CXX compiler ABI info"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-zMH0Vf"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-zMH0Vf"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_SCAN_FOR_MODULES: "OFF"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "CMAKE_CXX_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-zMH0Vf'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_23672/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_23672.dir/build.make CMakeFiles/cmTC_23672.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-zMH0Vf'
+        Building CXX object CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o
+        /usr/bin/c++   -std=gnu++23   -v -o CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp
+        Using built-in specs.
+        COLLECT_GCC=/usr/bin/c++
+        Target: x86_64-pc-linux-gnu
+        Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust,cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+        Thread model: posix
+        Supported LTO compression algorithms: zlib zstd
+        gcc version 15.1.1 20250425 (GCC) 
+        COLLECT_GCC_OPTIONS='-std=gnu++23' '-v' '-o' 'CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_23672.dir/'
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/cc1plus -quiet -v -D_GNU_SOURCE /usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp -quiet -dumpdir CMakeFiles/cmTC_23672.dir/ -dumpbase CMakeCXXCompilerABI.cpp.cpp -dumpbase-ext .cpp -mtune=generic -march=x86-64 -std=gnu++23 -version -o /tmp/cciEWCUS.s
+        GNU C++23 (GCC) version 15.1.1 20250425 (x86_64-pc-linux-gnu)
+        	compiled by GNU C version 15.1.1 20250425, GMP version 6.3.0, MPFR version 4.2.2, MPC version 1.3.1, isl version isl-0.27-GMP
+        
+        GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+        ignoring nonexistent directory "/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/include"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1/x86_64-pc-linux-gnu
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1/backward
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include
+         /usr/local/include
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed
+         /usr/include
+        End of search list.
+        Compiler executable checksum: 273a3ad13c2b3da270445c81b5712432
+        COLLECT_GCC_OPTIONS='-std=gnu++23' '-v' '-o' 'CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_23672.dir/'
+         as -v --64 -o CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o /tmp/cciEWCUS.s
+        GNU assembler version 2.44.0 (x86_64-pc-linux-gnu) using BFD version (GNU Binutils) 2.44.0
+        COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+        LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/
+        COLLECT_GCC_OPTIONS='-std=gnu++23' '-v' '-o' 'CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.'
+        Linking CXX executable cmTC_23672
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_23672.dir/link.txt --verbose=1
+        Using built-in specs.
+        COLLECT_GCC=/usr/bin/c++
+        COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper
+        Target: x86_64-pc-linux-gnu
+        Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust,cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+        Thread model: posix
+        Supported LTO compression algorithms: zlib zstd
+        gcc version 15.1.1 20250425 (GCC) 
+        COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+        LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/
+        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_23672' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_23672.'
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccOYo70d.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -o cmTC_23672 /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib -v CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o
+        collect2 version 15.1.1 20250425
+        /usr/bin/ld -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccOYo70d.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -o cmTC_23672 /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib -v CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o
+        GNU ld (GNU Binutils) 2.44.0
+        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_23672' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_23672.'
+        /usr/bin/c++  -v -Wl,-v CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_23672
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-zMH0Vf'
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerABI.cmake:191 (message)"
+      - "/usr/share/cmake/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Parsed CXX implicit include dir info: rv=done
+        found start of include info
+        found start of implicit include info
+          add: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1]
+          add: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1/x86_64-pc-linux-gnu]
+          add: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1/backward]
+          add: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include]
+          add: [/usr/local/include]
+          add: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed]
+          add: [/usr/include]
+        end of search list found
+        collapse include dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1] ==> [/usr/include/c++/15.1.1]
+        collapse include dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1/x86_64-pc-linux-gnu] ==> [/usr/include/c++/15.1.1/x86_64-pc-linux-gnu]
+        collapse include dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1/backward] ==> [/usr/include/c++/15.1.1/backward]
+        collapse include dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include] ==> [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include]
+        collapse include dir [/usr/local/include] ==> [/usr/local/include]
+        collapse include dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed] ==> [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed]
+        collapse include dir [/usr/include] ==> [/usr/include]
+        implicit include dirs: [/usr/include/c++/15.1.1;/usr/include/c++/15.1.1/x86_64-pc-linux-gnu;/usr/include/c++/15.1.1/backward;/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include;/usr/local/include;/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed;/usr/include]
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerABI.cmake:227 (message)"
+      - "/usr/share/cmake/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Parsed CXX implicit link information:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
+        ignore line: [Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-zMH0Vf']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_23672/fast]
+        ignore line: [/usr/bin/make  -f CMakeFiles/cmTC_23672.dir/build.make CMakeFiles/cmTC_23672.dir/build]
+        ignore line: [make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-zMH0Vf']
+        ignore line: [Building CXX object CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o]
+        ignore line: [/usr/bin/c++   -std=gnu++23   -v -o CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o -c /usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [Using built-in specs.]
+        ignore line: [COLLECT_GCC=/usr/bin/c++]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada c c++ d fortran go lto m2 objc obj-c++ rust cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror]
+        ignore line: [Thread model: posix]
+        ignore line: [Supported LTO compression algorithms: zlib zstd]
+        ignore line: [gcc version 15.1.1 20250425 (GCC) ]
+        ignore line: [COLLECT_GCC_OPTIONS='-std=gnu++23' '-v' '-o' 'CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_23672.dir/']
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/cc1plus -quiet -v -D_GNU_SOURCE /usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp -quiet -dumpdir CMakeFiles/cmTC_23672.dir/ -dumpbase CMakeCXXCompilerABI.cpp.cpp -dumpbase-ext .cpp -mtune=generic -march=x86-64 -std=gnu++23 -version -o /tmp/cciEWCUS.s]
+        ignore line: [GNU C++23 (GCC) version 15.1.1 20250425 (x86_64-pc-linux-gnu)]
+        ignore line: [	compiled by GNU C version 15.1.1 20250425  GMP version 6.3.0  MPFR version 4.2.2  MPC version 1.3.1  isl version isl-0.27-GMP]
+        ignore line: []
+        ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+        ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/include"]
+        ignore line: [#include "..." search starts here:]
+        ignore line: [#include <...> search starts here:]
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1]
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1/x86_64-pc-linux-gnu]
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../include/c++/15.1.1/backward]
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include]
+        ignore line: [ /usr/local/include]
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed]
+        ignore line: [ /usr/include]
+        ignore line: [End of search list.]
+        ignore line: [Compiler executable checksum: 273a3ad13c2b3da270445c81b5712432]
+        ignore line: [COLLECT_GCC_OPTIONS='-std=gnu++23' '-v' '-o' 'CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_23672.dir/']
+        ignore line: [ as -v --64 -o CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o /tmp/cciEWCUS.s]
+        ignore line: [GNU assembler version 2.44.0 (x86_64-pc-linux-gnu) using BFD version (GNU Binutils) 2.44.0]
+        ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/]
+        ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/]
+        ignore line: [COLLECT_GCC_OPTIONS='-std=gnu++23' '-v' '-o' 'CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.']
+        ignore line: [Linking CXX executable cmTC_23672]
+        ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_23672.dir/link.txt --verbose=1]
+        ignore line: [Using built-in specs.]
+        ignore line: [COLLECT_GCC=/usr/bin/c++]
+        ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada c c++ d fortran go lto m2 objc obj-c++ rust cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror]
+        ignore line: [Thread model: posix]
+        ignore line: [Supported LTO compression algorithms: zlib zstd]
+        ignore line: [gcc version 15.1.1 20250425 (GCC) ]
+        ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/]
+        ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_23672' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_23672.']
+        link line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccOYo70d.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -o cmTC_23672 /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib -v CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/collect2] ==> ignore
+          arg [-plugin] ==> ignore
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so] ==> ignore
+          arg [-plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper] ==> ignore
+          arg [-plugin-opt=-fresolution=/tmp/ccOYo70d.res] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+          arg [-plugin-opt=-pass-through=-lc] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+          arg [--build-id] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-pie] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_23672] ==> ignore
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o]
+          arg [-L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1] ==> dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1]
+          arg [-L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib] ==> dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib]
+          arg [-L/lib/../lib] ==> dir [/lib/../lib]
+          arg [-L/usr/lib/../lib] ==> dir [/usr/lib/../lib]
+          arg [-L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../..] ==> dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../..]
+          arg [-L/lib] ==> dir [/lib]
+          arg [-L/usr/lib] ==> dir [/usr/lib]
+          arg [-v] ==> ignore
+          arg [CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+          arg [-lstdc++] ==> lib [stdc++]
+          arg [-lm] ==> lib [m]
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [-lgcc] ==> lib [gcc]
+          arg [-lc] ==> lib [c]
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [-lgcc] ==> lib [gcc]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o]
+        ignore line: [collect2 version 15.1.1 20250425]
+        ignore line: [/usr/bin/ld -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccOYo70d.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -o cmTC_23672 /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib -v CMakeFiles/cmTC_23672.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o]
+        linker tool for 'CXX': /usr/bin/ld
+        collapse obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o] ==> [/usr/lib/Scrt1.o]
+        collapse obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o] ==> [/usr/lib/crti.o]
+        collapse obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o] ==> [/usr/lib/crtn.o]
+        collapse library dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1] ==> [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1]
+        collapse library dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib] ==> [/usr/lib]
+        collapse library dir [/lib/../lib] ==> [/lib]
+        collapse library dir [/usr/lib/../lib] ==> [/usr/lib]
+        collapse library dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../..] ==> [/usr/lib]
+        collapse library dir [/lib] ==> [/lib]
+        collapse library dir [/usr/lib] ==> [/usr/lib]
+        implicit libs: [stdc++;m;gcc_s;gcc;c;gcc_s;gcc]
+        implicit objs: [/usr/lib/Scrt1.o;/usr/lib/crti.o;/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o;/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o;/usr/lib/crtn.o]
+        implicit dirs: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1;/usr/lib;/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CMakeDetermineLinkerId.cmake:36 (message)"
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerABI.cmake:270 (cmake_determine_linker_id)"
+      - "/usr/share/cmake/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Running the CXX compiler's linker: "/usr/bin/ld" "-v"
+      GNU ld (GNU Binutils) 2.44.0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerABI.cmake:83 (try_compile)"
+      - "/usr/share/cmake/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:20 (project)"
+    checks:
+      - "Detecting C compiler ABI info"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XtziJi"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XtziJi"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+    buildResult:
+      variable: "CMAKE_C_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XtziJi'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_8b4d8/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_8b4d8.dir/build.make CMakeFiles/cmTC_8b4d8.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XtziJi'
+        Building C object CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o
+        /usr/bin/cc   -v -o CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake/Modules/CMakeCCompilerABI.c
+        Using built-in specs.
+        COLLECT_GCC=/usr/bin/cc
+        Target: x86_64-pc-linux-gnu
+        Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust,cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+        Thread model: posix
+        Supported LTO compression algorithms: zlib zstd
+        gcc version 15.1.1 20250425 (GCC) 
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_8b4d8.dir/'
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/cc1 -quiet -v /usr/share/cmake/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_8b4d8.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mtune=generic -march=x86-64 -version -o /tmp/ccxyFDEQ.s
+        GNU C23 (GCC) version 15.1.1 20250425 (x86_64-pc-linux-gnu)
+        	compiled by GNU C version 15.1.1 20250425, GMP version 6.3.0, MPFR version 4.2.2, MPC version 1.3.1, isl version isl-0.27-GMP
+        
+        GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+        ignoring nonexistent directory "/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/include"
+        #include "..." search starts here:
+        #include <...> search starts here:
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include
+         /usr/local/include
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed
+         /usr/include
+        End of search list.
+        Compiler executable checksum: 84f20f02d3bca01af950e22ec686f7c8
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_8b4d8.dir/'
+         as -v --64 -o CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o /tmp/ccxyFDEQ.s
+        GNU assembler version 2.44.0 (x86_64-pc-linux-gnu) using BFD version (GNU Binutils) 2.44.0
+        COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+        LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/
+        COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.'
+        Linking C executable cmTC_8b4d8
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8b4d8.dir/link.txt --verbose=1
+        Using built-in specs.
+        COLLECT_GCC=/usr/bin/cc
+        COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper
+        Target: x86_64-pc-linux-gnu
+        Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada,c,c++,d,fortran,go,lto,m2,objc,obj-c++,rust,cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror
+        Thread model: posix
+        Supported LTO compression algorithms: zlib zstd
+        gcc version 15.1.1 20250425 (GCC) 
+        COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/
+        LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/
+        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_8b4d8' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_8b4d8.'
+         /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccxucqZb.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -o cmTC_8b4d8 /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib -v CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o
+        collect2 version 15.1.1 20250425
+        /usr/bin/ld -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccxucqZb.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -o cmTC_8b4d8 /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib -v CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o
+        GNU ld (GNU Binutils) 2.44.0
+        COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_8b4d8' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_8b4d8.'
+        /usr/bin/cc  -v -Wl,-v CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o -o cmTC_8b4d8
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XtziJi'
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerABI.cmake:191 (message)"
+      - "/usr/share/cmake/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Parsed C implicit include dir info: rv=done
+        found start of include info
+        found start of implicit include info
+          add: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include]
+          add: [/usr/local/include]
+          add: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed]
+          add: [/usr/include]
+        end of search list found
+        collapse include dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include] ==> [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include]
+        collapse include dir [/usr/local/include] ==> [/usr/local/include]
+        collapse include dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed] ==> [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed]
+        collapse include dir [/usr/include] ==> [/usr/include]
+        implicit include dirs: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include;/usr/local/include;/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed;/usr/include]
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerABI.cmake:227 (message)"
+      - "/usr/share/cmake/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Parsed C implicit link information:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
+        ignore line: [Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XtziJi']
+        ignore line: []
+        ignore line: [Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_8b4d8/fast]
+        ignore line: [/usr/bin/make  -f CMakeFiles/cmTC_8b4d8.dir/build.make CMakeFiles/cmTC_8b4d8.dir/build]
+        ignore line: [make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XtziJi']
+        ignore line: [Building C object CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o]
+        ignore line: [/usr/bin/cc   -v -o CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o -c /usr/share/cmake/Modules/CMakeCCompilerABI.c]
+        ignore line: [Using built-in specs.]
+        ignore line: [COLLECT_GCC=/usr/bin/cc]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada c c++ d fortran go lto m2 objc obj-c++ rust cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror]
+        ignore line: [Thread model: posix]
+        ignore line: [Supported LTO compression algorithms: zlib zstd]
+        ignore line: [gcc version 15.1.1 20250425 (GCC) ]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_8b4d8.dir/']
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/cc1 -quiet -v /usr/share/cmake/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_8b4d8.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mtune=generic -march=x86-64 -version -o /tmp/ccxyFDEQ.s]
+        ignore line: [GNU C23 (GCC) version 15.1.1 20250425 (x86_64-pc-linux-gnu)]
+        ignore line: [	compiled by GNU C version 15.1.1 20250425  GMP version 6.3.0  MPFR version 4.2.2  MPC version 1.3.1  isl version isl-0.27-GMP]
+        ignore line: []
+        ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+        ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../x86_64-pc-linux-gnu/include"]
+        ignore line: [#include "..." search starts here:]
+        ignore line: [#include <...> search starts here:]
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include]
+        ignore line: [ /usr/local/include]
+        ignore line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/include-fixed]
+        ignore line: [ /usr/include]
+        ignore line: [End of search list.]
+        ignore line: [Compiler executable checksum: 84f20f02d3bca01af950e22ec686f7c8]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_8b4d8.dir/']
+        ignore line: [ as -v --64 -o CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o /tmp/ccxyFDEQ.s]
+        ignore line: [GNU assembler version 2.44.0 (x86_64-pc-linux-gnu) using BFD version (GNU Binutils) 2.44.0]
+        ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/]
+        ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.']
+        ignore line: [Linking C executable cmTC_8b4d8]
+        ignore line: [/usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8b4d8.dir/link.txt --verbose=1]
+        ignore line: [Using built-in specs.]
+        ignore line: [COLLECT_GCC=/usr/bin/cc]
+        ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper]
+        ignore line: [Target: x86_64-pc-linux-gnu]
+        ignore line: [Configured with: /tmp/pkg/src/gcc/configure --enable-languages=ada c c++ d fortran go lto m2 objc obj-c++ rust cobol --enable-bootstrap --prefix=/usr --libdir=/usr/lib --libexecdir=/usr/lib --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=https://github.com/CachyOS/CachyOS-PKGBUILDS/issues --with-build-config=bootstrap-lto --with-linker-hash-style=gnu --with-system-zlib --enable-__cxa_atexit --enable-cet=auto --enable-checking=release --enable-clocale=gnu --enable-default-pie --enable-default-ssp --enable-gnu-indirect-function --enable-gnu-unique-object --enable-libstdcxx-backtrace --enable-link-serialization=1 --enable-linker-build-id --enable-lto --enable-multilib --enable-plugin --enable-shared --enable-threads=posix --disable-libssp --disable-libstdcxx-pch --disable-werror]
+        ignore line: [Thread model: posix]
+        ignore line: [Supported LTO compression algorithms: zlib zstd]
+        ignore line: [gcc version 15.1.1 20250425 (GCC) ]
+        ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/]
+        ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/:/lib/../lib/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../:/lib/:/usr/lib/]
+        ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_8b4d8' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_8b4d8.']
+        link line: [ /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/collect2 -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccxucqZb.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -o cmTC_8b4d8 /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib -v CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/collect2] ==> ignore
+          arg [-plugin] ==> ignore
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so] ==> ignore
+          arg [-plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper] ==> ignore
+          arg [-plugin-opt=-fresolution=/tmp/ccxucqZb.res] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+          arg [-plugin-opt=-pass-through=-lc] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+          arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+          arg [--build-id] ==> ignore
+          arg [--eh-frame-hdr] ==> ignore
+          arg [--hash-style=gnu] ==> ignore
+          arg [-m] ==> ignore
+          arg [elf_x86_64] ==> ignore
+          arg [-dynamic-linker] ==> ignore
+          arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+          arg [-pie] ==> ignore
+          arg [-o] ==> ignore
+          arg [cmTC_8b4d8] ==> ignore
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o]
+          arg [-L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1] ==> dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1]
+          arg [-L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib] ==> dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib]
+          arg [-L/lib/../lib] ==> dir [/lib/../lib]
+          arg [-L/usr/lib/../lib] ==> dir [/usr/lib/../lib]
+          arg [-L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../..] ==> dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../..]
+          arg [-L/lib] ==> dir [/lib]
+          arg [-L/usr/lib] ==> dir [/usr/lib]
+          arg [-v] ==> ignore
+          arg [CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o] ==> ignore
+          arg [-lgcc] ==> lib [gcc]
+          arg [--push-state] ==> ignore
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--pop-state] ==> ignore
+          arg [-lc] ==> lib [c]
+          arg [-lgcc] ==> lib [gcc]
+          arg [--push-state] ==> ignore
+          arg [--as-needed] ==> ignore
+          arg [-lgcc_s] ==> lib [gcc_s]
+          arg [--pop-state] ==> ignore
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o]
+          arg [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o] ==> obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o]
+        ignore line: [collect2 version 15.1.1 20250425]
+        ignore line: [/usr/bin/ld -plugin /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/lto-wrapper -plugin-opt=-fresolution=/tmp/ccxucqZb.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr --hash-style=gnu -m elf_x86_64 -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -o cmTC_8b4d8 /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1 -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../.. -L/lib -L/usr/lib -v CMakeFiles/cmTC_8b4d8.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o /usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o]
+        linker tool for 'C': /usr/bin/ld
+        collapse obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/Scrt1.o] ==> [/usr/lib/Scrt1.o]
+        collapse obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crti.o] ==> [/usr/lib/crti.o]
+        collapse obj [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib/crtn.o] ==> [/usr/lib/crtn.o]
+        collapse library dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1] ==> [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1]
+        collapse library dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../../../lib] ==> [/usr/lib]
+        collapse library dir [/lib/../lib] ==> [/lib]
+        collapse library dir [/usr/lib/../lib] ==> [/usr/lib]
+        collapse library dir [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/../../..] ==> [/usr/lib]
+        collapse library dir [/lib] ==> [/lib]
+        collapse library dir [/usr/lib] ==> [/usr/lib]
+        implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+        implicit objs: [/usr/lib/Scrt1.o;/usr/lib/crti.o;/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtbeginS.o;/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1/crtendS.o;/usr/lib/crtn.o]
+        implicit dirs: [/usr/lib/gcc/x86_64-pc-linux-gnu/15.1.1;/usr/lib;/lib]
+        implicit fwks: []
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CMakeDetermineLinkerId.cmake:36 (message)"
+      - "/usr/share/cmake/Modules/CMakeDetermineCompilerABI.cmake:270 (cmake_determine_linker_id)"
+      - "/usr/share/cmake/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:20 (project)"
+    message: |
+      Running the C compiler's linker: "/usr/bin/ld" "-v"
+      GNU ld (GNU Binutils) 2.44.0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckLinkerFlag.cmake:34 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckPIESupported.cmake:125 (cmake_check_linker_flag)"
+      - "CMakeLists.txt:28 (check_pie_supported)"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-28sgAi"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-28sgAi"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "CMAKE_C_LINK_PIE_SUPPORTED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-28sgAi'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_0c270/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_0c270.dir/build.make CMakeFiles/cmTC_0c270.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-28sgAi'
+        Building C object CMakeFiles/cmTC_0c270.dir/src.c.o
+        /usr/bin/cc -DCMAKE_C_LINK_PIE_SUPPORTED  -fPIE -fPIE -o CMakeFiles/cmTC_0c270.dir/src.c.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-28sgAi/src.c
+        Linking C executable cmTC_0c270
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0c270.dir/link.txt --verbose=1
+        /usr/bin/cc  -fPIE -fPIE -pie CMakeFiles/cmTC_0c270.dir/src.c.o -o cmTC_0c270
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-28sgAi'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckLinkerFlag.cmake:34 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckPIESupported.cmake:136 (cmake_check_linker_flag)"
+      - "CMakeLists.txt:28 (check_pie_supported)"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-tbMt9p"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-tbMt9p"
+    cmakeVariables:
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "CMAKE_C_LINK_NO_PIE_SUPPORTED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-tbMt9p'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_a166d/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_a166d.dir/build.make CMakeFiles/cmTC_a166d.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-tbMt9p'
+        Building C object CMakeFiles/cmTC_a166d.dir/src.c.o
+        /usr/bin/cc -DCMAKE_C_LINK_NO_PIE_SUPPORTED  -fPIE -o CMakeFiles/cmTC_a166d.dir/src.c.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-tbMt9p/src.c
+        Linking C executable cmTC_a166d
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a166d.dir/link.txt --verbose=1
+        /usr/bin/cc -no-pie CMakeFiles/cmTC_a166d.dir/src.c.o -o cmTC_a166d
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-tbMt9p'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckLinkerFlag.cmake:34 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckPIESupported.cmake:125 (cmake_check_linker_flag)"
+      - "CMakeLists.txt:28 (check_pie_supported)"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-fm3XEU"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-fm3XEU"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "CMAKE_CXX_LINK_PIE_SUPPORTED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-fm3XEU'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_c18c4/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_c18c4.dir/build.make CMakeFiles/cmTC_c18c4.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-fm3XEU'
+        Building CXX object CMakeFiles/cmTC_c18c4.dir/src.cxx.o
+        /usr/bin/c++ -DCMAKE_CXX_LINK_PIE_SUPPORTED  -fPIE -std=gnu++23 -fPIE -o CMakeFiles/cmTC_c18c4.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-fm3XEU/src.cxx
+        Linking CXX executable cmTC_c18c4
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_c18c4.dir/link.txt --verbose=1
+        /usr/bin/c++  -fPIE -fPIE -pie CMakeFiles/cmTC_c18c4.dir/src.cxx.o -o cmTC_c18c4
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-fm3XEU'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckLinkerFlag.cmake:34 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckPIESupported.cmake:136 (cmake_check_linker_flag)"
+      - "CMakeLists.txt:28 (check_pie_supported)"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-bgKozC"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-bgKozC"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "CMAKE_CXX_LINK_NO_PIE_SUPPORTED"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-bgKozC'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_fb0dd/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_fb0dd.dir/build.make CMakeFiles/cmTC_fb0dd.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-bgKozC'
+        Building CXX object CMakeFiles/cmTC_fb0dd.dir/src.cxx.o
+        /usr/bin/c++ -DCMAKE_CXX_LINK_NO_PIE_SUPPORTED  -std=gnu++23 -fPIE -o CMakeFiles/cmTC_fb0dd.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-bgKozC/src.cxx
+        Linking CXX executable cmTC_fb0dd
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_fb0dd.dir/link.txt --verbose=1
+        /usr/bin/c++ -no-pie CMakeFiles/cmTC_fb0dd.dir/src.cxx.o -o cmTC_fb0dd
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-bgKozC'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/CheckCSourceCompiles.cmake:58 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/FindThreads.cmake:97 (check_c_source_compiles)"
+      - "/usr/share/cmake/Modules/FindThreads.cmake:163 (_threads_check_libc)"
+      - "/usr/share/cmake/Modules/CMakeFindDependencyMacro.cmake:78 (find_package)"
+      - "/usr/lib/cmake/glslang/glslang-config.cmake:41 (find_dependency)"
+      - "CMakeLists.txt:221 (find_package)"
+    checks:
+      - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-YeyfBV"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-YeyfBV"
+    cmakeVariables:
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_FLAGS: ""
+      CMAKE_C_FLAGS_DEBUG: "-g"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/home/matt/shadPS4/cmake"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "CMAKE_HAVE_LIBC_PTHREAD"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-YeyfBV'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_a19c3/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_a19c3.dir/build.make CMakeFiles/cmTC_a19c3.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-YeyfBV'
+        Building C object CMakeFiles/cmTC_a19c3.dir/src.c.o
+        /usr/bin/cc -DCMAKE_HAVE_LIBC_PTHREAD  -fPIE -o CMakeFiles/cmTC_a19c3.dir/src.c.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-YeyfBV/src.c
+        Linking C executable cmTC_a19c3
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_a19c3.dir/link.txt --verbose=1
+        /usr/bin/cc CMakeFiles/cmTC_a19c3.dir/src.c.o -o cmTC_a19c3
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-YeyfBV'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:47 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WALL"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-NBAiIj"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-NBAiIj"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WALL"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-NBAiIj'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_556ec/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_556ec.dir/build.make CMakeFiles/cmTC_556ec.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-NBAiIj'
+        Building CXX object CMakeFiles/cmTC_556ec.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WALL  -std=gnu++23 -fPIE   -Wall -o CMakeFiles/cmTC_556ec.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-NBAiIj/src.cxx
+        Linking CXX executable cmTC_556ec
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_556ec.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_556ec.dir/src.cxx.o -o cmTC_556ec
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-NBAiIj'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:48 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WEXTRA"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-xDf7B7"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-xDf7B7"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WEXTRA"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-xDf7B7'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_8cf89/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_8cf89.dir/build.make CMakeFiles/cmTC_8cf89.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-xDf7B7'
+        Building CXX object CMakeFiles/cmTC_8cf89.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WEXTRA  -std=gnu++23 -fPIE   -Wextra -o CMakeFiles/cmTC_8cf89.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-xDf7B7/src.cxx
+        Linking CXX executable cmTC_8cf89
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_8cf89.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_8cf89.dir/src.cxx.o -o cmTC_8cf89
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-xDf7B7'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:49 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WPEDANTIC"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-aqAcXF"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-aqAcXF"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WPEDANTIC"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-aqAcXF'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_21364/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_21364.dir/build.make CMakeFiles/cmTC_21364.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-aqAcXF'
+        Building CXX object CMakeFiles/cmTC_21364.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WPEDANTIC  -std=gnu++23 -fPIE   -Wpedantic -o CMakeFiles/cmTC_21364.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-aqAcXF/src.cxx
+        Linking CXX executable cmTC_21364
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_21364.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_21364.dir/src.cxx.o -o cmTC_21364
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-aqAcXF'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:50 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WERROR"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-O1TlVF"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-O1TlVF"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WERROR"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-O1TlVF'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_25394/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_25394.dir/build.make CMakeFiles/cmTC_25394.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-O1TlVF'
+        Building CXX object CMakeFiles/cmTC_25394.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WERROR  -std=gnu++23 -fPIE   -Werror -o CMakeFiles/cmTC_25394.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-O1TlVF/src.cxx
+        Linking CXX executable cmTC_25394
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_25394.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_25394.dir/src.cxx.o -o cmTC_25394
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-O1TlVF'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:51 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WSIGN_CONVERSION"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-ijg7kY"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-ijg7kY"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WSIGN_CONVERSION"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-ijg7kY'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_aa806/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_aa806.dir/build.make CMakeFiles/cmTC_aa806.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-ijg7kY'
+        Building CXX object CMakeFiles/cmTC_aa806.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WSIGN_CONVERSION  -std=gnu++23 -fPIE   -Wsign-conversion -o CMakeFiles/cmTC_aa806.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-ijg7kY/src.cxx
+        Linking CXX executable cmTC_aa806
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_aa806.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_aa806.dir/src.cxx.o -o cmTC_aa806
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-ijg7kY'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:52 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WCONVERSION"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XNK5A0"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XNK5A0"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WCONVERSION"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XNK5A0'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_06fce/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_06fce.dir/build.make CMakeFiles/cmTC_06fce.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XNK5A0'
+        Building CXX object CMakeFiles/cmTC_06fce.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WCONVERSION  -std=gnu++23 -fPIE   -Wconversion -o CMakeFiles/cmTC_06fce.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XNK5A0/src.cxx
+        Linking CXX executable cmTC_06fce
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_06fce.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_06fce.dir/src.cxx.o -o cmTC_06fce
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-XNK5A0'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:53 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WDUPLICATED_COND"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-p2EkXR"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-p2EkXR"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WDUPLICATED_COND"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-p2EkXR'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_6076f/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_6076f.dir/build.make CMakeFiles/cmTC_6076f.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-p2EkXR'
+        Building CXX object CMakeFiles/cmTC_6076f.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WDUPLICATED_COND  -std=gnu++23 -fPIE   -Wduplicated-cond -o CMakeFiles/cmTC_6076f.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-p2EkXR/src.cxx
+        Linking CXX executable cmTC_6076f
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6076f.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_6076f.dir/src.cxx.o -o cmTC_6076f
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-p2EkXR'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:54 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WDUPLICATED_BRANCHES"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-kvW5Tn"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-kvW5Tn"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WDUPLICATED_BRANCHES"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-kvW5Tn'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_05f3f/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_05f3f.dir/build.make CMakeFiles/cmTC_05f3f.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-kvW5Tn'
+        Building CXX object CMakeFiles/cmTC_05f3f.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WDUPLICATED_BRANCHES  -std=gnu++23 -fPIE   -Wduplicated-branches -o CMakeFiles/cmTC_05f3f.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-kvW5Tn/src.cxx
+        Linking CXX executable cmTC_05f3f
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_05f3f.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_05f3f.dir/src.cxx.o -o cmTC_05f3f
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-kvW5Tn'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:55 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WLOGICAL_OP"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-De4F5t"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-De4F5t"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WLOGICAL_OP"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-De4F5t'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_7f108/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_7f108.dir/build.make CMakeFiles/cmTC_7f108.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-De4F5t'
+        Building CXX object CMakeFiles/cmTC_7f108.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WLOGICAL_OP  -std=gnu++23 -fPIE   -Wlogical-op -o CMakeFiles/cmTC_7f108.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-De4F5t/src.cxx
+        Linking CXX executable cmTC_7f108
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7f108.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_7f108.dir/src.cxx.o -o cmTC_7f108
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-De4F5t'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:56 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WDOUBLE_PROMOTION"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-9jChbS"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-9jChbS"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WDOUBLE_PROMOTION"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-9jChbS'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_7c7dc/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_7c7dc.dir/build.make CMakeFiles/cmTC_7c7dc.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-9jChbS'
+        Building CXX object CMakeFiles/cmTC_7c7dc.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WDOUBLE_PROMOTION  -std=gnu++23 -fPIE   -Wdouble-promotion -o CMakeFiles/cmTC_7c7dc.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-9jChbS/src.cxx
+        Linking CXX executable cmTC_7c7dc
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7c7dc.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_7c7dc.dir/src.cxx.o -o cmTC_7c7dc
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-9jChbS'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:57 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WRANGE_LOOP_ANALYSIS"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-GQclLp"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-GQclLp"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WRANGE_LOOP_ANALYSIS"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-GQclLp'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_e617d/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_e617d.dir/build.make CMakeFiles/cmTC_e617d.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-GQclLp'
+        Building CXX object CMakeFiles/cmTC_e617d.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WRANGE_LOOP_ANALYSIS  -std=gnu++23 -fPIE   -Wrange-loop-analysis -o CMakeFiles/cmTC_e617d.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-GQclLp/src.cxx
+        c++: error: unrecognized command-line option '-Wrange-loop-analysis'
+        make[1]: *** [CMakeFiles/cmTC_e617d.dir/build.make:81: CMakeFiles/cmTC_e617d.dir/src.cxx.o] Error 1
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-GQclLp'
+        make: *** [Makefile:134: cmTC_e617d/fast] Error 2
+        
+      exitCode: 2
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:58 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WUNDEF"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-H7PBWJ"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-H7PBWJ"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WUNDEF"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-H7PBWJ'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_7f447/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_7f447.dir/build.make CMakeFiles/cmTC_7f447.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-H7PBWJ'
+        Building CXX object CMakeFiles/cmTC_7f447.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WUNDEF  -std=gnu++23 -fPIE   -Wundef -o CMakeFiles/cmTC_7f447.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-H7PBWJ/src.cxx
+        Linking CXX executable cmTC_7f447
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7f447.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_7f447.dir/src.cxx.o -o cmTC_7f447
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-H7PBWJ'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/Internal/CheckCompilerFlag.cmake:18 (cmake_check_source_compiles)"
+      - "/usr/share/cmake/Modules/CheckCXXCompilerFlag.cmake:55 (cmake_check_compiler_flag)"
+      - "externals/toml11/CMakeLists.txt:59 (check_cxx_compiler_flag)"
+    checks:
+      - "Performing Test TOML11_COMPILER_SUPPORTS_WSHADOW"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-2EHLKk"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-2EHLKk"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: ""
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "TOML11_COMPILER_SUPPORTS_WSHADOW"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-2EHLKk'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_f6e8d/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_f6e8d.dir/build.make CMakeFiles/cmTC_f6e8d.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-2EHLKk'
+        Building CXX object CMakeFiles/cmTC_f6e8d.dir/src.cxx.o
+        /usr/bin/c++ -DTOML11_COMPILER_SUPPORTS_WSHADOW  -std=gnu++23 -fPIE   -Wshadow -o CMakeFiles/cmTC_f6e8d.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-2EHLKk/src.cxx
+        Linking CXX executable cmTC_f6e8d
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f6e8d.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_f6e8d.dir/src.cxx.o -o cmTC_f6e8d
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-2EHLKk'
+        
+      exitCode: 0
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "/usr/share/cmake/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "/usr/share/cmake/Modules/CheckCXXSourceCompiles.cmake:58 (cmake_check_source_compiles)"
+      - "/usr/lib/cmake/Qt6/FindWrapAtomic.cmake:36 (check_cxx_source_compiles)"
+      - "/usr/share/cmake/Modules/CMakeFindDependencyMacro.cmake:78 (find_package)"
+      - "/usr/lib/cmake/Qt6/QtPublicDependencyHelpers.cmake:36 (find_dependency)"
+      - "/usr/lib/cmake/Qt6Core/Qt6CoreDependencies.cmake:35 (_qt_internal_find_third_party_dependencies)"
+      - "/usr/lib/cmake/Qt6Core/Qt6CoreConfig.cmake:55 (include)"
+      - "/usr/share/cmake/Modules/CMakeFindDependencyMacro.cmake:78 (find_package)"
+      - "/usr/lib/cmake/Qt6/QtPublicDependencyHelpers.cmake:137 (find_dependency)"
+      - "/usr/lib/cmake/Qt6Widgets/Qt6WidgetsDependencies.cmake:45 (_qt_internal_find_qt_dependencies)"
+      - "/usr/lib/cmake/Qt6Widgets/Qt6WidgetsConfig.cmake:53 (include)"
+      - "/usr/lib/cmake/Qt6/Qt6Config.cmake:222 (find_package)"
+      - "CMakeLists.txt:257 (find_package)"
+    checks:
+      - "Performing Test HAVE_STDATOMIC"
+    directories:
+      source: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-afhTYx"
+      binary: "/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-afhTYx"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: ""
+      CMAKE_CXX_FLAGS_DEBUG: "-g"
+      CMAKE_CXX_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_C_LINK_NO_PIE_SUPPORTED: "1"
+      CMAKE_EXE_LINKER_FLAGS: ""
+      CMAKE_MODULE_PATH: "/usr/lib/cmake/Qt6;/usr/lib/cmake/Qt6/3rdparty/extra-cmake-modules/find-modules;/usr/lib/cmake/Qt6/3rdparty/kwin"
+      CMAKE_POSITION_INDEPENDENT_CODE: "TRUE"
+    buildResult:
+      variable: "HAVE_STDATOMIC"
+      cached: true
+      stdout: |
+        Change Dir: '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-afhTYx'
+        
+        Run Build Command(s): /usr/bin/cmake -E env VERBOSE=1 /usr/bin/make -f Makefile cmTC_6e4aa/fast
+        /usr/bin/make  -f CMakeFiles/cmTC_6e4aa.dir/build.make CMakeFiles/cmTC_6e4aa.dir/build
+        make[1]: Entering directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-afhTYx'
+        Building CXX object CMakeFiles/cmTC_6e4aa.dir/src.cxx.o
+        /usr/bin/c++ -DHAVE_STDATOMIC  -std=gnu++23 -fPIE -o CMakeFiles/cmTC_6e4aa.dir/src.cxx.o -c /home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-afhTYx/src.cxx
+        Linking CXX executable cmTC_6e4aa
+        /usr/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6e4aa.dir/link.txt --verbose=1
+        /usr/bin/c++ CMakeFiles/cmTC_6e4aa.dir/src.cxx.o -o cmTC_6e4aa
+        make[1]: Leaving directory '/home/matt/shadPS4/CMakeFiles/CMakeScratch/TryCompile-afhTYx'
+        
+      exitCode: 0
+...

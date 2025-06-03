@@ -51,11 +51,12 @@ std::array<u8, 48_KB> Liverpool::ConstantEngine::constants_heap;
 
 static std::span<const u32> NextPacket(std::span<const u32> span, size_t offset) {
     if (offset > span.size()) {
+        const auto* header = reinterpret_cast<const PM4Header*>(span.data());
         LOG_ERROR(
             Lib_GnmDriver,
             ": packet length exceeds remaining submission size. Packet dword count={}, remaining "
-            "submission dwords={}",
-            offset, span.size());
+            "submission dwords={}, header={:#x}, type={}, opcode={:#x}",
+            offset, span.size(), header->raw, header->type.Value(), header->type == 3 ? static_cast<u32>(header->type3.opcode.Value()) : 0);
         // Return empty subspan so check for next packet bails out
         return {};
     }
@@ -229,6 +230,13 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
 
         switch (type) {
         case 0:
+            LOG_ERROR(Render_Vulkan, "Unsupported PM4 type 0");
+            {
+                const auto* type0_header = reinterpret_cast<const PM4Type0Header*>(header);
+                const u32 packet_size = type0_header->NumWords();
+                dcb = NextPacket(dcb, packet_size); // Skip this packet
+            }
+            continue;
         case 1:
             UNREACHABLE_MSG("Unsupported PM4 type {}", type);
             break;

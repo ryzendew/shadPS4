@@ -89,6 +89,9 @@ void Translator::EmitVectorMemory(const GcnInst& inst) {
     case Opcode::BUFFER_ATOMIC_DEC:
         return BUFFER_ATOMIC(AtomicOp::Dec, inst);
 
+    case Opcode::BUFFER_ATOMIC_CMPSWAP:
+        return BUFFER_ATOMIC_CMPSWAP(inst);
+
         // MIMG
         // Image load operations
     case Opcode::IMAGE_LOAD:
@@ -359,6 +362,43 @@ void Translator::BUFFER_ATOMIC(AtomicOp op, const GcnInst& inst) {
             UNREACHABLE();
         }
     }();
+
+    if (mubuf.glc) {
+        ir.SetVectorReg(vdata, IR::U32{original_val});
+    }
+}
+
+void Translator::BUFFER_ATOMIC_CMPSWAP(const GcnInst& inst) {
+    const auto& mubuf = inst.control.mubuf;
+    const IR::VectorReg vaddr{inst.src[0].code};
+    const IR::VectorReg vdata{inst.src[1].code};
+    const IR::ScalarReg srsrc{inst.src[2].code * 4};
+    const IR::Value address = [&] -> IR::Value {
+        if (mubuf.idxen && mubuf.offen) {
+            return ir.CompositeConstruct(ir.GetVectorReg(vaddr), ir.GetVectorReg(vaddr + 1));
+        }
+        if (mubuf.idxen || mubuf.offen) {
+            return ir.GetVectorReg(vaddr);
+        }
+        return {};
+    }();
+    const IR::U32 soffset{GetSrc<IR::U32>(inst.src[3])};
+    ASSERT_MSG(soffset.IsImmediate() && soffset.U32() == 0, "Non immediate offset not supported");
+
+    IR::BufferInstInfo buffer_info{};
+    buffer_info.index_enable.Assign(mubuf.idxen);
+    buffer_info.offset_enable.Assign(mubuf.offen);
+    buffer_info.inst_offset.Assign(mubuf.offset);
+    buffer_info.globally_coherent.Assign(mubuf.glc);
+    buffer_info.system_coherent.Assign(mubuf.slc);
+
+    IR::Value vdata_val = ir.GetVectorReg<Shader::IR::U32>(vdata);
+    IR::Value cmp_val = ir.GetVectorReg<Shader::IR::U32>(vdata + 1);
+    const IR::Value handle =
+        ir.CompositeConstruct(ir.GetScalarReg(srsrc), ir.GetScalarReg(srsrc + 1),
+                              ir.GetScalarReg(srsrc + 2), ir.GetScalarReg(srsrc + 3));
+
+    const IR::Value original_val = ir.BufferAtomicCmpSwap(handle, address, vdata_val, cmp_val, buffer_info);
 
     if (mubuf.glc) {
         ir.SetVectorReg(vdata, IR::U32{original_val});
