@@ -5,6 +5,7 @@
 
 #include <shared_mutex>
 #include "common/recursive_lock.h"
+#include "common/shared_first_mutex.h"
 #include "video_core/buffer_cache/buffer_cache.h"
 #include "video_core/page_manager.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
@@ -56,8 +57,10 @@ public:
                                  bool from_guest = false);
 
     void InlineData(VAddr address, const void* value, u32 num_bytes, bool is_gds);
+    void CopyBuffer(VAddr dst, VAddr src, u32 num_bytes, bool dst_gds, bool src_gds);
     u32 ReadDataFromGds(u32 gsd_offset);
     bool InvalidateMemory(VAddr addr, u64 size);
+    bool ReadMemory(VAddr addr, u64 size);
     bool IsMapped(VAddr addr, u64 size);
     void MapMemory(VAddr addr, u64 size);
     void UnmapMemory(VAddr addr, u64 size);
@@ -65,7 +68,7 @@ public:
     void CpSync();
     u64 Flush();
     void Finish();
-    void ProcessFaults();
+    void OnSubmit();
 
     PipelineCache& GetPipelineCache() {
         return pipeline_cache;
@@ -87,10 +90,11 @@ private:
     void DepthStencilCopy(bool is_depth, bool is_stencil);
     void EliminateFastClear();
 
-    void UpdateDynamicState(const GraphicsPipeline& pipeline) const;
+    void UpdateDynamicState(const GraphicsPipeline& pipeline, bool is_indexed) const;
     void UpdateViewportScissorState() const;
     void UpdateDepthStencilState() const;
-    void UpdatePrimitiveState() const;
+    void UpdatePrimitiveState(bool is_indexed) const;
+    void UpdateRasterizationState() const;
 
     bool FilterDraw();
 
@@ -108,6 +112,7 @@ private:
     }
 
     bool IsComputeMetaClear(const Pipeline* pipeline);
+    bool IsComputeImageCopy(const Pipeline* pipeline);
 
 private:
     friend class VideoCore::BufferCache;
@@ -120,7 +125,7 @@ private:
     AmdGpu::Liverpool* liverpool;
     Core::MemoryManager* memory;
     boost::icl::interval_set<VAddr> mapped_ranges;
-    std::shared_mutex mapped_ranges_mutex;
+    Common::SharedFirstMutex mapped_ranges_mutex;
     PipelineCache pipeline_cache;
 
     boost::container::static_vector<
@@ -138,7 +143,8 @@ private:
     boost::container::static_vector<BufferBindingInfo, Shader::NumBuffers> buffer_bindings;
     using ImageBindingInfo = std::pair<VideoCore::ImageId, VideoCore::TextureCache::TextureDesc>;
     boost::container::static_vector<ImageBindingInfo, Shader::NumImages> image_bindings;
-    bool fault_process_pending{false};
+    bool fault_process_pending{};
+    bool attachment_feedback_loop{};
 };
 
 } // namespace Vulkan

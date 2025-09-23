@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <mutex>
 #include "common/assert.h"
 #include "common/debug.h"
 #include "imgui/renderer/texture_manager.h"
@@ -34,18 +33,13 @@ void Scheduler::BeginRendering(const RenderState& new_state) {
     is_rendering = true;
     render_state = new_state;
 
-    const auto width =
-        render_state.width != std::numeric_limits<u32>::max() ? render_state.width : 1;
-    const auto height =
-        render_state.height != std::numeric_limits<u32>::max() ? render_state.height : 1;
-
     const vk::RenderingInfo rendering_info = {
         .renderArea =
             {
                 .offset = {0, 0},
-                .extent = {width, height},
+                .extent = {render_state.width, render_state.height},
             },
-        .layerCount = 1,
+        .layerCount = render_state.num_layers,
         .colorAttachmentCount = render_state.num_color_attachments,
         .pColorAttachments = render_state.num_color_attachments > 0
                                  ? render_state.color_attachments.data()
@@ -96,6 +90,14 @@ void Scheduler::Wait(u64 tick) {
     // If this becomes a problem, it can be commented out.
     // Idealy we would implement proper gpu sync.
     while (!pending_ops.empty() && pending_ops.front().gpu_tick <= tick) {
+        pending_ops.front().callback();
+        pending_ops.pop();
+    }
+}
+
+void Scheduler::PopPendingOperations() {
+    master_semaphore.Refresh();
+    while (!pending_ops.empty() && master_semaphore.IsFree(pending_ops.front().gpu_tick)) {
         pending_ops.front().callback();
         pending_ops.pop();
     }
@@ -175,10 +177,7 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
     AllocateWorkerCommandBuffers();
 
     // Apply pending operations
-    while (!pending_ops.empty() && IsFree(pending_ops.front().gpu_tick)) {
-        pending_ops.front().callback();
-        pending_ops.pop();
-    }
+    PopPendingOperations();
 }
 
 void DynamicState::Commit(const Instance& instance, const vk::CommandBuffer& cmdbuf) {
@@ -308,6 +307,10 @@ void DynamicState::Commit(const Instance& instance, const vk::CommandBuffer& cmd
             cmdbuf.setPrimitiveRestartEnable(primitive_restart_enable);
         }
     }
+    if (dirty_state.rasterizer_discard_enable) {
+        dirty_state.rasterizer_discard_enable = false;
+        cmdbuf.setRasterizerDiscardEnable(rasterizer_discard_enable);
+    }
     if (dirty_state.cull_mode) {
         dirty_state.cull_mode = false;
         cmdbuf.setCullMode(cull_mode);
@@ -318,13 +321,23 @@ void DynamicState::Commit(const Instance& instance, const vk::CommandBuffer& cmd
     }
     if (dirty_state.blend_constants) {
         dirty_state.blend_constants = false;
-        cmdbuf.setBlendConstants(blend_constants);
+        cmdbuf.setBlendConstants(blend_constants.data());
     }
     if (dirty_state.color_write_masks) {
         dirty_state.color_write_masks = false;
         if (instance.IsDynamicColorWriteMaskSupported()) {
             cmdbuf.setColorWriteMaskEXT(0, color_write_masks);
         }
+    }
+    if (dirty_state.line_width) {
+        dirty_state.line_width = false;
+        cmdbuf.setLineWidth(line_width);
+    }
+    if (dirty_state.feedback_loop_enabled && instance.IsAttachmentFeedbackLoopLayoutSupported()) {
+        dirty_state.feedback_loop_enabled = false;
+        cmdbuf.setAttachmentFeedbackLoopEnableEXT(feedback_loop_enabled
+                                                      ? vk::ImageAspectFlagBits::eColor
+                                                      : vk::ImageAspectFlagBits::eNone);
     }
 }
 

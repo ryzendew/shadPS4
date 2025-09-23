@@ -14,81 +14,43 @@ namespace VideoCore {
 
 using namespace Vulkan;
 
-bool ImageInfo::IsBlockCoded() const {
-    switch (pixel_format) {
-    case vk::Format::eBc1RgbaSrgbBlock:
-    case vk::Format::eBc1RgbaUnormBlock:
-    case vk::Format::eBc1RgbSrgbBlock:
-    case vk::Format::eBc1RgbUnormBlock:
-    case vk::Format::eBc2SrgbBlock:
-    case vk::Format::eBc2UnormBlock:
-    case vk::Format::eBc3SrgbBlock:
-    case vk::Format::eBc3UnormBlock:
-    case vk::Format::eBc4SnormBlock:
-    case vk::Format::eBc4UnormBlock:
-    case vk::Format::eBc5SnormBlock:
-    case vk::Format::eBc5UnormBlock:
-    case vk::Format::eBc6HSfloatBlock:
-    case vk::Format::eBc6HUfloatBlock:
-    case vk::Format::eBc7SrgbBlock:
-    case vk::Format::eBc7UnormBlock:
-        return true;
-    default:
-        return false;
-    }
-}
-
-bool ImageInfo::IsPacked() const {
-    switch (pixel_format) {
-    case vk::Format::eB5G5R5A1UnormPack16:
-        [[fallthrough]];
-    case vk::Format::eB5G6R5UnormPack16:
-        return true;
-    default:
-        return false;
-    }
-}
-
-bool ImageInfo::IsDepthStencil() const {
-    switch (pixel_format) {
-    case vk::Format::eD16Unorm:
-    case vk::Format::eD16UnormS8Uint:
-    case vk::Format::eD32Sfloat:
-    case vk::Format::eD32SfloatS8Uint:
-        return true;
-    default:
-        return false;
-    }
-}
-
-bool ImageInfo::HasStencil() const {
-    if (pixel_format == vk::Format::eD32SfloatS8Uint ||
-        pixel_format == vk::Format::eD24UnormS8Uint ||
-        pixel_format == vk::Format::eD16UnormS8Uint) {
-        return true;
-    }
-    return false;
-}
-
-static vk::ImageUsageFlags ImageUsageFlags(const ImageInfo& info) {
+static vk::ImageUsageFlags ImageUsageFlags(const Vulkan::Instance* instance,
+                                           const ImageInfo& info) {
     vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eTransferSrc |
                                 vk::ImageUsageFlagBits::eTransferDst |
                                 vk::ImageUsageFlagBits::eSampled;
-    if (info.IsDepthStencil()) {
-        usage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
-    } else {
-        if (!info.IsBlockCoded() && !info.IsPacked()) {
+    if (!info.props.is_block) {
+        if (info.props.is_depth) {
+            usage |= vk::ImageUsageFlagBits::eDepthStencilAttachment;
+        } else {
             usage |= vk::ImageUsageFlagBits::eColorAttachment;
+            if (instance->IsAttachmentFeedbackLoopLayoutSupported()) {
+                usage |= vk::ImageUsageFlagBits::eAttachmentFeedbackLoopEXT;
+            }
+            // Always create images with storage flag to avoid needing re-creation in case of e.g
+            // compute clears This sacrifices a bit of performance but is less work. ExtendedUsage
+            // flag is also used.
+            usage |= vk::ImageUsageFlagBits::eStorage;
         }
-        // In cases where an image is created as a render/depth target and cleared with compute,
-        // we cannot predict whether it will be used as a storage image. A proper solution would
-        // involve re-creating the resource with a new configuration and copying previous content
-        // into it. However, for now, we will set storage usage for all images (if the format
-        // allows), sacrificing a bit of performance. Note use of ExtendedUsage flag set by default.
-        usage |= vk::ImageUsageFlagBits::eStorage;
     }
 
     return usage;
+}
+
+static vk::ImageType ConvertImageType(AmdGpu::ImageType type) noexcept {
+    switch (type) {
+    case AmdGpu::ImageType::Color1D:
+    case AmdGpu::ImageType::Color1DArray:
+        return vk::ImageType::e1D;
+    case AmdGpu::ImageType::Color2D:
+    case AmdGpu::ImageType::Color2DMsaa:
+    case AmdGpu::ImageType::Color2DArray:
+        return vk::ImageType::e2D;
+    case AmdGpu::ImageType::Color3D:
+        return vk::ImageType::e3D;
+    default:
+        UNREACHABLE();
+    }
 }
 
 static vk::FormatFeatureFlags2 FormatFeatureFlags(const vk::ImageUsageFlags usage_flags) {
@@ -161,8 +123,12 @@ Image::Image(const Vulkan::Instance& instance_, Vulkan::Scheduler& scheduler_,
     if (info.props.is_volume) {
         flags |= vk::ImageCreateFlagBits::e2DArrayCompatible;
     }
+    // Not supported by MoltenVK.
+    if (info.props.is_block && instance->GetDriverID() != vk::DriverId::eMoltenvk) {
+        flags |= vk::ImageCreateFlagBits::eBlockTexelViewCompatible;
+    }
 
-    usage_flags = ImageUsageFlags(info);
+    usage_flags = ImageUsageFlags(instance, info);
     format_features = FormatFeatureFlags(usage_flags);
 
     switch (info.pixel_format) {
@@ -182,15 +148,28 @@ Image::Image(const Vulkan::Instance& instance_, Vulkan::Scheduler& scheduler_,
 
     constexpr auto tiling = vk::ImageTiling::eOptimal;
     const auto supported_format = instance->GetSupportedFormat(info.pixel_format, format_features);
-    const auto properties = instance->GetPhysicalDevice().getImageFormatProperties(
-        supported_format, info.type, tiling, usage_flags, flags);
-    const auto supported_samples = properties.result == vk::Result::eSuccess
-                                       ? properties.value.sampleCounts
-                                       : vk::SampleCountFlagBits::e1;
+    const vk::PhysicalDeviceImageFormatInfo2 format_info{
+        .format = supported_format,
+        .type = ConvertImageType(info.type),
+        .tiling = tiling,
+        .usage = usage_flags,
+        .flags = flags,
+    };
+    const auto image_format_properties =
+        instance->GetPhysicalDevice().getImageFormatProperties2(format_info);
+    if (image_format_properties.result == vk::Result::eErrorFormatNotSupported) {
+        LOG_ERROR(Render_Vulkan, "image format {} type {} is not supported (flags {}, usage {})",
+                  vk::to_string(supported_format), vk::to_string(format_info.type),
+                  vk::to_string(format_info.flags), vk::to_string(format_info.usage));
+    }
+    const auto supported_samples =
+        image_format_properties.result == vk::Result::eSuccess
+            ? image_format_properties.value.imageFormatProperties.sampleCounts
+            : vk::SampleCountFlagBits::e1;
 
     const vk::ImageCreateInfo image_ci = {
         .flags = flags,
-        .imageType = info.type,
+        .imageType = ConvertImageType(info.type),
         .format = supported_format,
         .extent{
             .width = info.size.width,
@@ -207,9 +186,9 @@ Image::Image(const Vulkan::Instance& instance_, Vulkan::Scheduler& scheduler_,
 
     image.Create(image_ci);
 
-    Vulkan::SetObjectName(instance->GetDevice(), (vk::Image)image, "Image {}x{}x{} {:#x}:{:#x}",
-                          info.size.width, info.size.height, info.size.depth, info.guest_address,
-                          info.guest_size);
+    Vulkan::SetObjectName(instance->GetDevice(), (vk::Image)image, "Image {}x{}x{} {} {:#x}:{:#x}",
+                          info.size.width, info.size.height, info.size.depth,
+                          AmdGpu::NameOf(info.tile_mode), info.guest_address, info.guest_size);
 }
 
 boost::container::small_vector<vk::ImageMemoryBarrier2, 32> Image::GetBarriers(
@@ -364,42 +343,125 @@ void Image::Upload(vk::Buffer buffer, u64 offset) {
             vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eTransferRead, {});
 }
 
-void Image::CopyImage(const Image& image) {
-    scheduler->EndRendering();
-    Transit(vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits2::eTransferWrite, {});
+void Image::CopyImage(Image& src_image) {
+    const auto& src_info = src_image.info;
+    const u32 num_mips = std::min(src_info.resources.levels, info.resources.levels);
+    ASSERT(src_info.resources.layers == info.resources.layers || num_mips == 1);
 
-    auto cmdbuf = scheduler->CommandBuffer();
+    const u32 width = src_info.size.width;
+    const u32 height = src_info.size.height;
+    const u32 depth =
+        info.type == AmdGpu::ImageType::Color3D ? info.size.depth : src_info.size.depth;
 
-    boost::container::small_vector<vk::ImageCopy, 14> image_copy{};
-    for (u32 m = 0; m < image.info.resources.levels; ++m) {
-        const auto mip_w = std::max(info.size.width >> m, 1u);
-        const auto mip_h = std::max(info.size.height >> m, 1u);
-        const auto mip_d = std::max(info.size.depth >> m, 1u);
+    boost::container::small_vector<vk::ImageCopy, 8> image_copies;
+    for (u32 mip = 0; mip < num_mips; ++mip) {
+        const auto mip_w = std::max(width >> mip, 1u);
+        const auto mip_h = std::max(height >> mip, 1u);
+        const auto mip_d = std::max(depth >> mip, 1u);
 
-        image_copy.emplace_back(vk::ImageCopy{
+        image_copies.emplace_back(vk::ImageCopy{
             .srcSubresource{
-                .aspectMask = image.aspect_mask,
-                .mipLevel = m,
+                .aspectMask = src_image.aspect_mask & ~vk::ImageAspectFlagBits::eStencil,
+                .mipLevel = mip,
                 .baseArrayLayer = 0,
-                .layerCount = image.info.resources.layers,
+                .layerCount = src_info.resources.layers,
             },
             .dstSubresource{
-                .aspectMask = image.aspect_mask,
-                .mipLevel = m,
+                .aspectMask = aspect_mask & ~vk::ImageAspectFlagBits::eStencil,
+                .mipLevel = mip,
                 .baseArrayLayer = 0,
-                .layerCount = image.info.resources.layers,
+                .layerCount = info.resources.layers,
             },
             .extent = {mip_w, mip_h, mip_d},
         });
     }
-    cmdbuf.copyImage(image.image, image.last_state.layout, this->image, this->last_state.layout,
-                     image_copy);
+
+    scheduler->EndRendering();
+    src_image.Transit(vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits2::eTransferRead, {});
+    Transit(vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits2::eTransferWrite, {});
+
+    auto cmdbuf = scheduler->CommandBuffer();
+    cmdbuf.copyImage(src_image.image, src_image.last_state.layout, image, last_state.layout,
+                     image_copies);
 
     Transit(vk::ImageLayout::eGeneral,
             vk::AccessFlagBits2::eShaderRead | vk::AccessFlagBits2::eTransferRead, {});
 }
 
-void Image::CopyMip(const Image& image, u32 mip, u32 slice) {
+void Image::CopyImageWithBuffer(Image& src_image, vk::Buffer buffer, u64 offset) {
+    const auto& src_info = src_image.info;
+    const u32 num_mips = std::min(src_info.resources.levels, info.resources.levels);
+    ASSERT(src_info.resources.layers == info.resources.layers || num_mips == 1);
+
+    boost::container::small_vector<vk::BufferImageCopy, 8> buffer_copies;
+    for (u32 mip = 0; mip < num_mips; ++mip) {
+        const auto mip_w = std::max(src_info.size.width >> mip, 1u);
+        const auto mip_h = std::max(src_info.size.height >> mip, 1u);
+        const auto mip_d = std::max(src_info.size.depth >> mip, 1u);
+
+        buffer_copies.emplace_back(vk::BufferImageCopy{
+            .bufferOffset = offset,
+            .bufferRowLength = 0,
+            .bufferImageHeight = 0,
+            .imageSubresource{
+                .aspectMask = src_image.aspect_mask & ~vk::ImageAspectFlagBits::eStencil,
+                .mipLevel = mip,
+                .baseArrayLayer = 0,
+                .layerCount = src_info.resources.layers,
+            },
+            .imageOffset = {0, 0, 0},
+            .imageExtent = {mip_w, mip_h, mip_d},
+        });
+    }
+
+    const vk::BufferMemoryBarrier2 pre_copy_barrier = {
+        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .srcAccessMask = vk::AccessFlagBits2::eTransferRead,
+        .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .dstAccessMask = vk::AccessFlagBits2::eTransferWrite,
+        .buffer = buffer,
+        .offset = offset,
+        .size = VK_WHOLE_SIZE,
+    };
+
+    const vk::BufferMemoryBarrier2 post_copy_barrier = {
+        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .dstAccessMask = vk::AccessFlagBits2::eTransferRead,
+        .buffer = buffer,
+        .offset = offset,
+        .size = VK_WHOLE_SIZE,
+    };
+
+    scheduler->EndRendering();
+    src_image.Transit(vk::ImageLayout::eTransferSrcOptimal, vk::AccessFlagBits2::eTransferRead, {});
+    Transit(vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits2::eTransferWrite, {});
+
+    auto cmdbuf = scheduler->CommandBuffer();
+    cmdbuf.pipelineBarrier2(vk::DependencyInfo{
+        .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+        .bufferMemoryBarrierCount = 1,
+        .pBufferMemoryBarriers = &pre_copy_barrier,
+    });
+
+    cmdbuf.copyImageToBuffer(src_image.image, vk::ImageLayout::eTransferSrcOptimal, buffer,
+                             buffer_copies);
+
+    cmdbuf.pipelineBarrier2(vk::DependencyInfo{
+        .dependencyFlags = vk::DependencyFlagBits::eByRegion,
+        .bufferMemoryBarrierCount = 1,
+        .pBufferMemoryBarriers = &post_copy_barrier,
+    });
+
+    for (auto& copy : buffer_copies) {
+        copy.imageSubresource.aspectMask = aspect_mask & ~vk::ImageAspectFlagBits::eStencil;
+    }
+
+    cmdbuf.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, buffer_copies);
+}
+
+void Image::CopyMip(const Image& src_image, u32 mip, u32 slice) {
     scheduler->EndRendering();
     Transit(vk::ImageLayout::eTransferDstOptimal, vk::AccessFlagBits2::eTransferWrite, {});
 
@@ -409,26 +471,27 @@ void Image::CopyMip(const Image& image, u32 mip, u32 slice) {
     const auto mip_h = std::max(info.size.height >> mip, 1u);
     const auto mip_d = std::max(info.size.depth >> mip, 1u);
 
-    ASSERT(mip_w == image.info.size.width);
-    ASSERT(mip_h == image.info.size.height);
+    const auto& src_info = src_image.info;
+    ASSERT(mip_w == src_info.size.width);
+    ASSERT(mip_h == src_info.size.height);
 
-    const u32 num_layers = std::min(image.info.resources.layers, info.resources.layers);
+    const u32 num_layers = std::min(src_info.resources.layers, info.resources.layers);
     const vk::ImageCopy image_copy{
         .srcSubresource{
-            .aspectMask = image.aspect_mask,
+            .aspectMask = src_image.aspect_mask,
             .mipLevel = 0,
             .baseArrayLayer = 0,
             .layerCount = num_layers,
         },
         .dstSubresource{
-            .aspectMask = image.aspect_mask,
+            .aspectMask = src_image.aspect_mask,
             .mipLevel = mip,
             .baseArrayLayer = slice,
             .layerCount = num_layers,
         },
         .extent = {mip_w, mip_h, mip_d},
     };
-    cmdbuf.copyImage(image.image, image.last_state.layout, this->image, this->last_state.layout,
+    cmdbuf.copyImage(src_image.image, src_image.last_state.layout, image, last_state.layout,
                      image_copy);
 
     Transit(vk::ImageLayout::eGeneral,

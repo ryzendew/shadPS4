@@ -112,6 +112,14 @@ public:
         return size_bytes;
     }
 
+    void SetLRUId(u64 id) noexcept {
+        lru_id = id;
+    }
+
+    u64 LRUId() const noexcept {
+        return lru_id;
+    }
+
     vk::Buffer Handle() const noexcept {
         return buffer;
     }
@@ -151,6 +159,7 @@ public:
     bool is_deleted{};
     int stream_score = 0;
     size_t size_bytes = 0;
+    u64 lru_id = 0;
     std::span<u8> mapped_data;
     const Vulkan::Instance* instance;
     Vulkan::Scheduler* scheduler;
@@ -168,7 +177,7 @@ public:
                           MemoryUsage usage, u64 size_bytes_);
 
     /// Reserves a region of memory from the stream buffer.
-    std::pair<u8*, u64> Map(u64 size, u64 alignment = 0);
+    std::pair<u8*, u64> Map(u64 size, u64 alignment = 0, bool allow_wait = true);
 
     /// Ensures that reserved bytes of memory are available to the GPU.
     void Commit();
@@ -181,10 +190,6 @@ public:
         return offset;
     }
 
-    u64 GetFreeSize() const {
-        return size_bytes - offset - mapped_size;
-    }
-
 private:
     struct Watch {
         u64 tick{};
@@ -195,7 +200,7 @@ private:
     void ReserveWatches(std::vector<Watch>& watches, std::size_t grow_size);
 
     /// Waits pending watches until requested upper bound.
-    void WaitPendingOperations(u64 requested_upper_bound);
+    bool WaitPendingOperations(u64 requested_upper_bound, bool allow_wait);
 
 private:
     u64 offset{};

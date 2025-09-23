@@ -1,21 +1,24 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
+#include <unordered_set>
 #include <boost/container/small_vector.hpp>
 #include <tsl/robin_map.h>
 
+#include "common/lru_cache.h"
 #include "common/slot_vector.h"
 #include "video_core/amdgpu/resource.h"
 #include "video_core/multi_level_page_table.h"
+#include "video_core/texture_cache/blit_helper.h"
 #include "video_core/texture_cache/image.h"
 #include "video_core/texture_cache/image_view.h"
 #include "video_core/texture_cache/sampler.h"
 #include "video_core/texture_cache/tile_manager.h"
 
-namespace Core::Libraries::VideoOut {
-struct BufferAttributeGroup;
+namespace AmdGpu {
+struct Liverpool;
 }
 
 namespace VideoCore {
@@ -23,18 +26,12 @@ namespace VideoCore {
 class BufferCache;
 class PageManager;
 
-enum class FindFlags {
-    NoCreate = 1 << 0,  ///< Do not create an image if searching for one fails.
-    RelaxDim = 1 << 1,  ///< Do not check the dimentions of image, only address.
-    RelaxSize = 1 << 2, ///< Do not check that the size matches exactly.
-    RelaxFmt = 1 << 3,  ///< Do not check that format is compatible.
-    ExactFmt = 1 << 4,  ///< Require the format to be exactly the same.
-};
-DECLARE_ENUM_FLAG_OPERATORS(FindFlags)
-
-static constexpr u32 MaxInvalidateDist = 12_MB;
-
 class TextureCache {
+    // Default values for garbage collection
+    static constexpr s64 DEFAULT_PRESSURE_GC_MEMORY = 1_GB + 512_MB;
+    static constexpr s64 DEFAULT_CRITICAL_GC_MEMORY = 3_GB;
+    static constexpr s64 TARGET_GC_THRESHOLD = 8_GB;
+
     struct Traits {
         using Entry = boost::container::small_vector<ImageId, 16>;
         static constexpr size_t AddressSpaceBits = 40;
@@ -92,8 +89,12 @@ public:
 
 public:
     TextureCache(const Vulkan::Instance& instance, Vulkan::Scheduler& scheduler,
-                 BufferCache& buffer_cache, PageManager& tracker);
+                 AmdGpu::Liverpool* liverpool, BufferCache& buffer_cache, PageManager& tracker);
     ~TextureCache();
+
+    TileManager& GetTileManager() noexcept {
+        return tile_manager;
+    }
 
     /// Invalidates any image in the logical page range.
     void InvalidateMemory(VAddr addr, size_t size);
@@ -104,11 +105,17 @@ public:
     /// Evicts any images that overlap the unmapped range.
     void UnmapMemory(VAddr cpu_addr, size_t size);
 
+    /// Schedules a copy of pending images for download back to CPU memory.
+    void ProcessDownloadImages();
+
     /// Retrieves the image handle of the image with the provided attributes.
-    [[nodiscard]] ImageId FindImage(BaseDesc& desc, FindFlags flags = {});
+    [[nodiscard]] ImageId FindImage(BaseDesc& desc, bool exact_fmt = false);
+
+    /// Retrieves image whose address matches provided
+    [[nodiscard]] ImageId FindImageFromRange(VAddr address, size_t size, bool ensure_valid = true);
 
     /// Retrieves an image view with the properties of the specified image id.
-    [[nodiscard]] ImageView& FindTexture(ImageId image_id, const ImageViewInfo& view_info);
+    [[nodiscard]] ImageView& FindTexture(ImageId image_id, const BaseDesc& desc);
 
     /// Retrieves the render target with specified properties
     [[nodiscard]] ImageView& FindRenderTarget(BaseDesc& desc);
@@ -121,6 +128,7 @@ public:
         std::scoped_lock lock{mutex};
         Image& image = slot_images[image_id];
         TrackImage(image_id);
+        TouchImage(image);
         RefreshImage(image, custom_scheduler);
     }
 
@@ -133,6 +141,7 @@ public:
     [[nodiscard]] ImageId ResolveDepthOverlap(const ImageInfo& requested_info, BindingType binding,
                                               ImageId cache_img_id);
 
+    /// Creates a new image with provided image info and copies subresources from image_id
     [[nodiscard]] ImageId ExpandImage(const ImageInfo& info, ImageId image_id);
 
     /// Reuploads image contents.
@@ -145,21 +154,29 @@ public:
 
     /// Retrieves the image with the specified id.
     [[nodiscard]] Image& GetImage(ImageId id) {
-        return slot_images[id];
+        auto& image = slot_images[id];
+        TouchImage(image);
+        return image;
     }
 
     /// Retrieves the image view with the specified id.
     [[nodiscard]] ImageView& GetImageView(ImageId id) {
-        return slot_image_views[id];
+        auto& view = slot_image_views[id];
+        // Maybe this is not needed.
+        Image& image = slot_images[view.image_id];
+        TouchImage(image);
+        return view;
     }
 
     /// Registers an image view for provided image
     ImageView& RegisterImageView(ImageId image_id, const ImageViewInfo& view_info);
 
+    /// Returns true if the specified address is a metadata surface.
     bool IsMeta(VAddr address) const {
         return surface_metas.contains(address);
     }
 
+    /// Returns true if a slice of the specified metadata surface has been cleared.
     bool IsMetaCleared(VAddr address, u32 slice) const {
         const auto& it = surface_metas.find(address);
         if (it != surface_metas.end()) {
@@ -168,6 +185,7 @@ public:
         return false;
     }
 
+    /// Clears all slices of the specified metadata surface.
     bool ClearMeta(VAddr address) {
         auto it = surface_metas.find(address);
         if (it != surface_metas.end()) {
@@ -177,6 +195,7 @@ public:
         return false;
     }
 
+    /// Updates the state of a slice of the specified metadata surface.
     bool TouchMeta(VAddr address, u32 slice, bool is_clear) {
         auto it = surface_metas.find(address);
         if (it != surface_metas.end()) {
@@ -189,6 +208,9 @@ public:
         }
         return false;
     }
+
+    /// Runs the garbage collector.
+    void RunGarbageCollector();
 
     template <typename Func>
     void ForEachImageInRegion(VAddr cpu_addr, size_t size, Func&& func) {
@@ -251,6 +273,12 @@ private:
     /// Gets or creates a null image for a particular format.
     ImageId GetNullImage(vk::Format format);
 
+    /// Copies image memory back to CPU.
+    void DownloadImageMemory(ImageId image_id);
+
+    /// Thread function for copying downloaded images out to CPU memory.
+    void DownloadedImagesThread(const std::stop_token& token);
+
     /// Create an image from the given parameters
     [[nodiscard]] ImageId InsertImage(const ImageInfo& info, VAddr cpu_addr);
 
@@ -275,6 +303,9 @@ private:
     /// Removes the image and any views/surface metas that reference it.
     void DeleteImage(ImageId image_id);
 
+    /// Touch the image in the LRU cache.
+    void TouchImage(const Image& image);
+
     void FreeImage(ImageId image_id) {
         UntrackImage(image_id);
         UnregisterImage(image_id);
@@ -284,15 +315,35 @@ private:
 private:
     const Vulkan::Instance& instance;
     Vulkan::Scheduler& scheduler;
+    AmdGpu::Liverpool* liverpool;
     BufferCache& buffer_cache;
     PageManager& tracker;
+    BlitHelper blit_helper;
     TileManager tile_manager;
     Common::SlotVector<Image> slot_images;
     Common::SlotVector<ImageView> slot_image_views;
     tsl::robin_map<u64, Sampler> samplers;
     tsl::robin_map<vk::Format, ImageId> null_images;
+    std::unordered_set<ImageId> download_images;
+    u64 total_used_memory = 0;
+    u64 trigger_gc_memory = 0;
+    u64 pressure_gc_memory = 0;
+    u64 critical_gc_memory = 0;
+    u64 gc_tick = 0;
+    Common::LeastRecentlyUsedCache<ImageId, u64> lru_cache;
     PageTable page_table;
     std::mutex mutex;
+
+    struct DownloadedImage {
+        u64 tick;
+        VAddr device_addr;
+        void* download;
+        size_t download_size;
+    };
+    std::queue<DownloadedImage> downloaded_images_queue;
+    std::mutex downloaded_images_mutex;
+    std::condition_variable_any downloaded_images_cv;
+    std::jthread downloaded_images_thread;
 
     struct MetaDataInfo {
         enum class Type {

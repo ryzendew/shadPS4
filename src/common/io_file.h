@@ -186,7 +186,9 @@ public:
 
     template <typename T>
     size_t WriteRaw(const void* data, size_t size) const {
-        return std::fwrite(data, sizeof(T), size, file);
+        auto bytes = std::fwrite(data, sizeof(T), size, file);
+        std::fflush(file);
+        return bytes;
     }
 
     template <typename T>
@@ -211,13 +213,13 @@ public:
         IOFile out(path, FileAccessMode::Write);
         return out.Write(data);
     }
+    std::FILE* file = nullptr;
 
 private:
     std::filesystem::path file_path;
     FileAccessMode file_access_mode{};
     FileType file_type{};
 
-    std::FILE* file = nullptr;
     uintptr_t file_mapping = 0;
 };
 
