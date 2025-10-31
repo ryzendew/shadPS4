@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -30,7 +30,8 @@ namespace Core {
 enum class MemoryProt : u32 {
     NoAccess = 0,
     CpuRead = 1,
-    CpuReadWrite = 2,
+    CpuWrite = 2,
+    CpuReadWrite = 3,
     CpuExec = 4,
     GpuRead = 16,
     GpuWrite = 32,
@@ -43,7 +44,7 @@ enum class MemoryMapFlags : u32 {
     Shared = 1,
     Private = 2,
     Fixed = 0x10,
-    NoOverwrite = 0x0080,
+    NoOverwrite = 0x80,
     NoSync = 0x800,
     NoCore = 0x20000,
     NoCoalesce = 0x400000,
@@ -199,11 +200,40 @@ public:
         return virtual_addr + size < max_gpu_address;
     }
 
-    bool IsValidAddress(const void* addr) const noexcept {
-        const VAddr virtual_addr = reinterpret_cast<VAddr>(addr);
+    bool IsValidMapping(const VAddr virtual_addr, const u64 size = 0) {
         const auto end_it = std::prev(vma_map.end());
         const VAddr end_addr = end_it->first + end_it->second.size;
-        return virtual_addr >= vma_map.begin()->first && virtual_addr < end_addr;
+
+        // If the address fails boundary checks, return early.
+        if (virtual_addr < vma_map.begin()->first || virtual_addr >= end_addr) {
+            return false;
+        }
+
+        // If size is zero and boundary checks succeed, then skip more robust checking
+        if (size == 0) {
+            return true;
+        }
+
+        // Now make sure the full address range is contained in vma_map.
+        auto vma_handle = FindVMA(virtual_addr);
+        auto addr_to_check = virtual_addr;
+        s64 size_to_validate = size;
+        while (vma_handle != vma_map.end() && size_to_validate > 0) {
+            const auto offset_in_vma = addr_to_check - vma_handle->second.base;
+            const auto size_in_vma = vma_handle->second.size - offset_in_vma;
+            size_to_validate -= size_in_vma;
+            addr_to_check += size_in_vma;
+            vma_handle++;
+
+            // Make sure there isn't any gap here
+            if (size_to_validate > 0 && vma_handle != vma_map.end() &&
+                addr_to_check != vma_handle->second.base) {
+                return false;
+            }
+        }
+
+        // If we reach this point and size to validate is not positive, then this mapping is valid.
+        return size_to_validate <= 0;
     }
 
     u64 ClampRangeSize(VAddr virtual_addr, u64 size);
@@ -222,11 +252,11 @@ public:
 
     void Free(PAddr phys_addr, u64 size);
 
-    s32 PoolCommit(VAddr virtual_addr, u64 size, MemoryProt prot);
+    s32 PoolCommit(VAddr virtual_addr, u64 size, MemoryProt prot, s32 mtype);
 
     s32 MapMemory(void** out_addr, VAddr virtual_addr, u64 size, MemoryProt prot,
                   MemoryMapFlags flags, VMAType type, std::string_view name = "anon",
-                  bool is_exec = false, PAddr phys_addr = -1, u64 alignment = 0);
+                  bool validate_dmem = false, PAddr phys_addr = -1, u64 alignment = 0);
 
     s32 MapFile(void** out_addr, VAddr virtual_addr, u64 size, MemoryProt prot,
                 MemoryMapFlags flags, s32 fd, s64 phys_addr);
@@ -239,7 +269,7 @@ public:
 
     s32 Protect(VAddr addr, u64 size, MemoryProt prot);
 
-    s64 ProtectBytes(VAddr addr, VirtualMemoryArea vma_base, u64 size, MemoryProt prot);
+    s64 ProtectBytes(VAddr addr, VirtualMemoryArea& vma_base, u64 size, MemoryProt prot);
 
     s32 VirtualQuery(VAddr addr, s32 flags, ::Libraries::Kernel::OrbisVirtualQueryInfo* info);
 
@@ -254,9 +284,11 @@ public:
 
     s32 IsStack(VAddr addr, void** start, void** end);
 
-    s32 SetDirectMemoryType(s64 phys_addr, s32 memory_type);
+    s32 SetDirectMemoryType(VAddr addr, u64 size, s32 memory_type);
 
     void NameVirtualRange(VAddr virtual_addr, u64 size, std::string_view name);
+
+    s32 GetMemoryPoolStats(::Libraries::Kernel::OrbisKernelMemoryPoolBlockStats* stats);
 
     void InvalidateMemory(VAddr addr, u64 size) const;
 
@@ -298,7 +330,7 @@ private:
                vma.type == VMAType::Pooled;
     }
 
-    VAddr SearchFree(VAddr virtual_addr, u64 size, u32 alignment = 0);
+    VAddr SearchFree(VAddr virtual_addr, u64 size, u32 alignment);
 
     VMAHandle CarveVMA(VAddr virtual_addr, u64 size);
 
