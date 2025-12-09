@@ -4,6 +4,10 @@
 #pragma once
 
 #include "common/types.h"
+#include "emulated/dimensions.h"
+#include "emulated/infinity.h"
+#include "emulated/skylander.h"
+#include "usb_backend.h"
 
 extern "C" {
 struct libusb_device;
@@ -21,6 +25,8 @@ class SymbolsResolver;
 
 namespace Libraries::Usbd {
 
+extern std::shared_ptr<UsbBackend> usb_backend;
+
 using SceUsbdDevice = libusb_device;
 using SceUsbdDeviceHandle = libusb_device_handle;
 using SceUsbdDeviceDescriptor = libusb_device_descriptor;
@@ -28,6 +34,10 @@ using SceUsbdConfigDescriptor = libusb_config_descriptor;
 using SceUsbdTransfer = libusb_transfer;
 using SceUsbdControlSetup = libusb_control_setup;
 using SceUsbdTransferCallback = void PS4_SYSV_ABI (*)(SceUsbdTransfer* transfer);
+
+using SkylandersPortalBackend = SkylanderBackend;
+using InfinityBaseBackend = InfinityBackend;
+using DimensionsToypadBackend = DimensionsBackend;
 
 enum class SceUsbdSpeed : u32 {
     UNKNOWN = 0,

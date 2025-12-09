@@ -559,8 +559,9 @@ void Translator::EmitFetch(const GcnInst& inst) {
             std::filesystem::create_directories(dump_dir);
         }
         const auto filename = fmt::format("vs_{:#018x}.fetch.bin", info.pgm_hash);
-        const auto file = IOFile{dump_dir / filename, FileAccessMode::Write};
-        file.WriteRaw<u8>(fetch_data->code, fetch_data->size);
+        const auto file = IOFile{dump_dir / filename, FileAccessMode::Create};
+        const auto* code = GetFetchShaderCode(info, code_sgpr_base);
+        file.WriteRaw<u8>(code, fetch_data->size);
     }
 
     for (const auto& attrib : fetch_data->attributes) {

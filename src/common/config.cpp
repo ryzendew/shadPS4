@@ -139,13 +139,10 @@ static ConfigEntry<double> trophyNotificationDuration(6.0);
 static ConfigEntry<string> logFilter("");
 static ConfigEntry<string> logType("sync");
 static ConfigEntry<string> userName("shadPS4");
-static ConfigEntry<string> chooseHomeTab("General");
 static ConfigEntry<bool> isShowSplash(false);
 static ConfigEntry<string> isSideTrophy("right");
 static ConfigEntry<bool> isConnectedToNetwork(false);
 static bool enableDiscordRPC = false;
-static bool checkCompatibilityOnStartup = false;
-static bool compatibilityData = false;
 static std::filesystem::path sys_modules_path = {};
 
 // Input
@@ -180,7 +177,7 @@ static ConfigEntry<bool> isFullscreen(false);
 static ConfigEntry<string> fullscreenMode("Windowed");
 static ConfigEntry<string> presentMode("Mailbox");
 static ConfigEntry<bool> isHDRAllowed(false);
-static ConfigEntry<bool> fsrEnabled(true);
+static ConfigEntry<bool> fsrEnabled(false);
 static ConfigEntry<bool> rcasEnabled(true);
 static ConfigEntry<int> rcasAttenuation(250);
 
@@ -194,16 +191,18 @@ static ConfigEntry<bool> vkCrashDiagnostic(false);
 static ConfigEntry<bool> vkHostMarkers(false);
 static ConfigEntry<bool> vkGuestMarkers(false);
 static ConfigEntry<bool> rdocEnable(false);
+static ConfigEntry<bool> pipelineCacheEnable(false);
+static ConfigEntry<bool> pipelineCacheArchive(false);
 
 // Debug
 static ConfigEntry<bool> isDebugDump(false);
 static ConfigEntry<bool> isShaderDebug(false);
 static ConfigEntry<bool> isSeparateLogFilesEnabled(false);
 static ConfigEntry<bool> isFpsColor(true);
+static ConfigEntry<bool> showFpsCounter(false);
 static ConfigEntry<bool> logEnabled(true);
 
 // GUI
-static bool load_game_size = true;
 static std::vector<GameInstallDir> settings_install_dirs = {};
 std::vector<bool> install_dirs_enabled = {};
 std::filesystem::path settings_addon_install_dir = {};
@@ -212,15 +211,28 @@ std::filesystem::path save_data_path = {};
 // Settings
 ConfigEntry<u32> m_language(1); // english
 
+// USB Device
+static ConfigEntry<int> usbDeviceBackend(UsbBackendType::Real);
+
 // Keys
 static string trophyKey = "";
 
 // Config version, used to determine if a user's config file is outdated.
 static string config_version = Common::g_scm_rev;
 
-// These two entries aren't stored in the config
+// These entries aren't stored in the config
 static bool overrideControllerColor = false;
 static int controllerCustomColorRGB[3] = {0, 0, 255};
+static bool isGameRunning = false;
+static bool load_auto_patches = true;
+
+bool getGameRunning() {
+    return isGameRunning;
+}
+
+void setGameRunning(bool running) {
+    isGameRunning = running;
+}
 
 std::filesystem::path getSysModulesPath() {
     if (sys_modules_path.empty()) {
@@ -278,10 +290,6 @@ void setTrophyKey(string key) {
     trophyKey = key;
 }
 
-bool GetLoadGameSizeEnabled() {
-    return load_game_size;
-}
-
 std::filesystem::path GetSaveDataPath() {
     if (save_data_path.empty()) {
         return Common::FS::GetUserPath(Common::FS::PathType::UserDir) / "savedata";
@@ -291,10 +299,6 @@ std::filesystem::path GetSaveDataPath() {
 
 void setVolumeSlider(int volumeValue, bool is_game_specific) {
     volumeSlider.set(volumeValue, is_game_specific);
-}
-
-void setLoadGameSizeEnabled(bool enable) {
-    load_game_size = enable;
 }
 
 bool isNeoModeConsole() {
@@ -309,8 +313,10 @@ int getExtraDmemInMbytes() {
     return extraDmemInMbytes.get();
 }
 
-void setExtraDmemInMbytes(int value) {
-    extraDmemInMbytes.base_value = 0;
+void setExtraDmemInMbytes(int value, bool is_game_specific) {
+    // Disable setting in global config
+    is_game_specific ? extraDmemInMbytes.game_specific_value = value
+                     : extraDmemInMbytes.base_value = 0;
 }
 
 bool getIsFullscreen() {
@@ -389,10 +395,6 @@ string getUserName() {
     return userName.get();
 }
 
-string getChooseHomeTab() {
-    return chooseHomeTab.get();
-}
-
 bool getUseSpecialPad() {
     return useSpecialPad.get();
 }
@@ -453,8 +455,24 @@ bool isRdocEnabled() {
     return rdocEnable.get();
 }
 
+bool isPipelineCacheEnabled() {
+    return pipelineCacheEnable.get();
+}
+
+bool isPipelineCacheArchived() {
+    return pipelineCacheArchive.get();
+}
+
 bool fpsColor() {
     return isFpsColor.get();
+}
+
+bool getShowFpsCounter() {
+    return showFpsCounter.get();
+}
+
+void setShowFpsCounter(bool enable, bool is_game_specific) {
+    showFpsCounter.set(enable, is_game_specific);
 }
 
 bool isLoggingEnabled() {
@@ -506,14 +524,6 @@ void setVkHostMarkersEnabled(bool enable, bool is_game_specific) {
 
 void setVkGuestMarkersEnabled(bool enable, bool is_game_specific) {
     vkGuestMarkers.set(enable, is_game_specific);
-}
-
-bool getCompatibilityEnabled() {
-    return compatibilityData;
-}
-
-bool getCheckCompatibilityOnStartup() {
-    return checkCompatibilityOnStartup;
 }
 
 bool getIsConnectedToNetwork() {
@@ -600,8 +610,24 @@ void setVkSyncValidation(bool enable, bool is_game_specific) {
     vkValidationSync.set(enable, is_game_specific);
 }
 
+void setVkCoreValidation(bool enable, bool is_game_specific) {
+    vkValidationCore.set(enable, is_game_specific);
+}
+
+void setVkGpuValidation(bool enable, bool is_game_specific) {
+    vkValidationGpu.set(enable, is_game_specific);
+}
+
 void setRdocEnabled(bool enable, bool is_game_specific) {
     rdocEnable.set(enable, is_game_specific);
+}
+
+void setPipelineCacheEnabled(bool enable, bool is_game_specific) {
+    pipelineCacheEnable.set(enable, is_game_specific);
+}
+
+void setPipelineCacheArchived(bool enable, bool is_game_specific) {
+    pipelineCacheArchive.set(enable, is_game_specific);
 }
 
 void setVblankFreq(u32 value, bool is_game_specific) {
@@ -680,10 +706,6 @@ void setUserName(const string& name, bool is_game_specific) {
     userName.set(name, is_game_specific);
 }
 
-void setChooseHomeTab(const string& type, bool is_game_specific) {
-    chooseHomeTab.set(type, is_game_specific);
-}
-
 void setUseSpecialPad(bool use) {
     useSpecialPad.base_value = use;
 }
@@ -694,14 +716,6 @@ void setSpecialPadClass(int type) {
 
 void setIsMotionControlsEnabled(bool use, bool is_game_specific) {
     isMotionControlsEnabled.set(use, is_game_specific);
-}
-
-void setCompatibilityEnabled(bool use) {
-    compatibilityData = use;
-}
-
-void setCheckCompatibilityOnStartup(bool use) {
-    checkCompatibilityOnStartup = use;
 }
 
 bool addGameInstallDir(const std::filesystem::path& dir, bool enabled) {
@@ -833,6 +847,21 @@ void setRcasAttenuation(int value, bool is_game_specific) {
     rcasAttenuation.set(value, is_game_specific);
 }
 
+int getUsbDeviceBackend() {
+    return usbDeviceBackend.get();
+}
+
+void setUsbDeviceBackend(int value, bool is_game_specific) {
+    usbDeviceBackend.set(value, is_game_specific);
+}
+
+bool getLoadAutoPatches() {
+    return load_auto_patches;
+}
+void setLoadAutoPatches(bool enable) {
+    load_auto_patches = enable;
+}
+
 void load(const std::filesystem::path& path, bool is_game_specific) {
     // If the configuration file does not exist, create it and return, unless it is game specific
     std::error_code error;
@@ -874,12 +903,8 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
         userName.setFromToml(general, "userName", is_game_specific);
         isShowSplash.setFromToml(general, "showSplash", is_game_specific);
         isSideTrophy.setFromToml(general, "sideTrophy", is_game_specific);
-        compatibilityData = toml::find_or<bool>(general, "compatibilityEnabled", compatibilityData);
-        checkCompatibilityOnStartup = toml::find_or<bool>(general, "checkCompatibilityOnStartup",
-                                                          checkCompatibilityOnStartup);
 
         isConnectedToNetwork.setFromToml(general, "isConnectedToNetwork", is_game_specific);
-        chooseHomeTab.setFromToml(general, "chooseHomeTab", is_game_specific);
         defaultControllerID.setFromToml(general, "defaultControllerID", is_game_specific);
         sys_modules_path = toml::find_fs_path_or(general, "sysModulesPath", sys_modules_path);
     }
@@ -894,6 +919,7 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
         isMotionControlsEnabled.setFromToml(input, "isMotionControlsEnabled", is_game_specific);
         useUnifiedInputConfig.setFromToml(input, "useUnifiedInputConfig", is_game_specific);
         backgroundControllerInput.setFromToml(input, "backgroundControllerInput", is_game_specific);
+        usbDeviceBackend.setFromToml(input, "usbDeviceBackend", is_game_specific);
     }
 
     if (data.contains("Audio")) {
@@ -940,6 +966,8 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
         vkHostMarkers.setFromToml(vk, "hostMarkers", is_game_specific);
         vkGuestMarkers.setFromToml(vk, "guestMarkers", is_game_specific);
         rdocEnable.setFromToml(vk, "rdocEnable", is_game_specific);
+        pipelineCacheEnable.setFromToml(vk, "pipelineCacheEnable", is_game_specific);
+        pipelineCacheArchive.setFromToml(vk, "pipelineCacheArchive", is_game_specific);
     }
 
     string current_version = {};
@@ -950,14 +978,13 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
         isSeparateLogFilesEnabled.setFromToml(debug, "isSeparateLogFilesEnabled", is_game_specific);
         isShaderDebug.setFromToml(debug, "CollectShader", is_game_specific);
         isFpsColor.setFromToml(debug, "FPSColor", is_game_specific);
+        showFpsCounter.setFromToml(debug, "showFpsCounter", is_game_specific);
         logEnabled.setFromToml(debug, "logEnabled", is_game_specific);
         current_version = toml::find_or<std::string>(debug, "ConfigVersion", current_version);
     }
 
     if (data.contains("GUI")) {
         const toml::value& gui = data.at("GUI");
-
-        load_game_size = toml::find_or<bool>(gui, "loadGameSizeEnabled", load_game_size);
 
         const auto install_dir_array =
             toml::find_or<std::vector<std::u8string>>(gui, "installDirs", {});
@@ -1062,7 +1089,6 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
     logFilter.setTomlValue(data, "General", "logFilter", is_game_specific);
     logType.setTomlValue(data, "General", "logType", is_game_specific);
     userName.setTomlValue(data, "General", "userName", is_game_specific);
-    chooseHomeTab.setTomlValue(data, "General", "chooseHomeTab", is_game_specific);
     isShowSplash.setTomlValue(data, "General", "showSplash", is_game_specific);
     isSideTrophy.setTomlValue(data, "General", "sideTrophy", is_game_specific);
     isNeo.setTomlValue(data, "General", "isPS4Pro", is_game_specific);
@@ -1079,6 +1105,7 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
                                          is_game_specific);
     backgroundControllerInput.setTomlValue(data, "Input", "backgroundControllerInput",
                                            is_game_specific);
+    usbDeviceBackend.setTomlValue(data, "Input", "usbDeviceBackend", is_game_specific);
 
     micDevice.setTomlValue(data, "Audio", "micDevice", is_game_specific);
     mainOutputDevice.setTomlValue(data, "Audio", "mainOutputDevice", is_game_specific);
@@ -1104,10 +1131,14 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
     gpuId.setTomlValue(data, "Vulkan", "gpuId", is_game_specific);
     vkValidation.setTomlValue(data, "Vulkan", "validation", is_game_specific);
     vkValidationSync.setTomlValue(data, "Vulkan", "validation_sync", is_game_specific);
+    vkValidationCore.setTomlValue(data, "Vulkan", "validation_core", is_game_specific);
+    vkValidationGpu.setTomlValue(data, "Vulkan", "validation_gpu", is_game_specific);
     vkCrashDiagnostic.setTomlValue(data, "Vulkan", "crashDiagnostic", is_game_specific);
     vkHostMarkers.setTomlValue(data, "Vulkan", "hostMarkers", is_game_specific);
     vkGuestMarkers.setTomlValue(data, "Vulkan", "guestMarkers", is_game_specific);
     rdocEnable.setTomlValue(data, "Vulkan", "rdocEnable", is_game_specific);
+    pipelineCacheEnable.setTomlValue(data, "Vulkan", "pipelineCacheEnable", is_game_specific);
+    pipelineCacheArchive.setTomlValue(data, "Vulkan", "pipelineCacheArchive", is_game_specific);
 
     isDebugDump.setTomlValue(data, "Debug", "DebugDump", is_game_specific);
     isShaderDebug.setTomlValue(data, "Debug", "CollectShader", is_game_specific);
@@ -1149,13 +1180,10 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
 
         // Non game-specific entries
         data["General"]["enableDiscordRPC"] = enableDiscordRPC;
-        data["General"]["compatibilityEnabled"] = compatibilityData;
-        data["General"]["checkCompatibilityOnStartup"] = checkCompatibilityOnStartup;
         data["General"]["sysModulesPath"] = string{fmt::UTF(sys_modules_path.u8string()).data};
         data["GUI"]["installDirs"] = install_dirs;
         data["GUI"]["installDirsEnabled"] = install_dirs_enabled;
         data["GUI"]["saveDataPath"] = string{fmt::UTF(save_data_path.u8string()).data};
-        data["GUI"]["loadGameSizeEnabled"] = load_game_size;
         data["GUI"]["addonInstallDir"] =
             string{fmt::UTF(settings_addon_install_dir.u8string()).data};
         data["Debug"]["ConfigVersion"] = config_version;
@@ -1169,9 +1197,8 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
         data["GPU"]["internalScreenWidth"] = internalScreenWidth.base_value;
         data["GPU"]["internalScreenHeight"] = internalScreenHeight.base_value;
         data["GPU"]["patchShaders"] = shouldPatchShaders.base_value;
-        data["Vulkan"]["validation_core"] = vkValidationCore.base_value;
-        data["Vulkan"]["validation_gpu"] = vkValidationGpu.base_value;
         data["Debug"]["FPSColor"] = isFpsColor.base_value;
+        data["Debug"]["showFpsCounter"] = showFpsCounter.base_value;
     }
 
     // Sorting of TOML sections
@@ -1205,7 +1232,6 @@ void setDefaultValues(bool is_game_specific) {
     logFilter.set("", is_game_specific);
     logType.set("sync", is_game_specific);
     userName.set("shadPS4", is_game_specific);
-    chooseHomeTab.set("General", is_game_specific);
     isShowSplash.set(false, is_game_specific);
     isSideTrophy.set("right", is_game_specific);
 
@@ -1214,6 +1240,7 @@ void setDefaultValues(bool is_game_specific) {
     cursorHideTimeout.set(5, is_game_specific);
     isMotionControlsEnabled.set(true, is_game_specific);
     backgroundControllerInput.set(false, is_game_specific);
+    usbDeviceBackend.set(UsbBackendType::Real, is_game_specific);
 
     // GS - Audio
     micDevice.set("Default Device", is_game_specific);
@@ -1243,6 +1270,8 @@ void setDefaultValues(bool is_game_specific) {
     vkHostMarkers.set(false, is_game_specific);
     vkGuestMarkers.set(false, is_game_specific);
     rdocEnable.set(false, is_game_specific);
+    pipelineCacheEnable.set(false, is_game_specific);
+    pipelineCacheArchive.set(false, is_game_specific);
 
     // GS - Debug
     isDebugDump.set(false, is_game_specific);
@@ -1258,8 +1287,6 @@ void setDefaultValues(bool is_game_specific) {
 
         // General
         enableDiscordRPC = false;
-        compatibilityData = false;
-        checkCompatibilityOnStartup = false;
 
         // Input
         useSpecialPad.base_value = false;
@@ -1278,11 +1305,9 @@ void setDefaultValues(bool is_game_specific) {
         internalScreenWidth.base_value = 1280;
         internalScreenHeight.base_value = 720;
 
-        // GUI
-        load_game_size = true;
-
         // Debug
         isFpsColor.base_value = true;
+        showFpsCounter.base_value = false;
     }
 }
 
@@ -1297,6 +1322,7 @@ hotkey_pause = f9
 hotkey_reload_inputs = f8
 hotkey_toggle_mouse_to_joystick = f7
 hotkey_toggle_mouse_to_gyro = f6
+hotkey_toggle_mouse_to_touchpad = delete
 hotkey_quit = lctrl, lshift, end
 )";
 }

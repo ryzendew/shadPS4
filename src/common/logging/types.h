@@ -70,6 +70,7 @@ enum class Class : u8 {
     Lib_Http2,               ///< The LibSceHttp2 implementation.
     Lib_SysModule,           ///< The LibSceSysModule implementation
     Lib_NpCommon,            ///< The LibSceNpCommon implementation
+    Lib_NpCommerce,          ///< The LibSceNpCommerce implementation
     Lib_NpAuth,              ///< The LibSceNpAuth implementation
     Lib_NpManager,           ///< The LibSceNpManager implementation
     Lib_NpScore,             ///< The LibSceNpScore implementation
@@ -114,6 +115,8 @@ enum class Class : u8 {
     Lib_CompanionHttpd,      ///< The LibCompanionHttpd implementation.
     Lib_CompanionUtil,       ///< The LibCompanionUtil implementation.
     Lib_VrTracker,           ///< The LibSceVrTracker implementation.
+    Lib_Font,                ///< The libSceFont implementation.
+    Lib_FontFt,              ///< The libSceFontFt implementation.
     Frontend,                ///< Emulator UI
     Render,                  ///< Video Core
     Render_Vulkan,           ///< Vulkan backend
