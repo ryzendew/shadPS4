@@ -5,6 +5,7 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <vector>
 #include <Zydis/Zydis.h>
 #include <xbyak/xbyak.h>
 #include <xbyak/xbyak_util.h>
@@ -88,7 +89,8 @@ static bool FilterTcbAccess(const ZydisDecodedOperand* operands) {
            dst_op.reg.value <= ZYDIS_REGISTER_R15;
 }
 
-static void GenerateTcbAccess(const ZydisDecodedOperand* operands, Xbyak::CodeGenerator& c) {
+static void GenerateTcbAccess(void* /* address */, const ZydisDecodedOperand* operands,
+                              Xbyak::CodeGenerator& c) {
     const auto dst = ZydisToXbyakRegisterOperand(operands[0]);
 
 #if defined(_WIN32)
@@ -121,12 +123,37 @@ static void GenerateTcbAccess(const ZydisDecodedOperand* operands, Xbyak::CodeGe
 #endif
 }
 
+static bool FilterStackCheck(const ZydisDecodedOperand* operands) {
+    const auto& dst_op = operands[0];
+    const auto& src_op = operands[1];
+
+    // Some compilers emit stack checks by starting a function with
+    // 'mov (64-bit register), fs:[0x28]', then checking with `xor (64-bit register), fs:[0x28]`
+    return src_op.type == ZYDIS_OPERAND_TYPE_MEMORY && src_op.mem.segment == ZYDIS_REGISTER_FS &&
+           src_op.mem.base == ZYDIS_REGISTER_NONE && src_op.mem.index == ZYDIS_REGISTER_NONE &&
+           src_op.mem.disp.value == 0x28 && dst_op.reg.value >= ZYDIS_REGISTER_RAX &&
+           dst_op.reg.value <= ZYDIS_REGISTER_R15;
+}
+
+static void GenerateStackCheck(void* /* address */, const ZydisDecodedOperand* operands,
+                               Xbyak::CodeGenerator& c) {
+    const auto dst = ZydisToXbyakRegisterOperand(operands[0]);
+    c.xor_(dst, 0);
+}
+
+static void GenerateStackCanary(void* /* address */, const ZydisDecodedOperand* operands,
+                                Xbyak::CodeGenerator& c) {
+    const auto dst = ZydisToXbyakRegisterOperand(operands[0]);
+    c.mov(dst, 0);
+}
+
 static bool FilterNoSSE4a(const ZydisDecodedOperand*) {
     Cpu cpu;
     return !cpu.has(Cpu::tSSE4a);
 }
 
-static void GenerateEXTRQ(const ZydisDecodedOperand* operands, Xbyak::CodeGenerator& c) {
+static void GenerateEXTRQ(void* /* address */, const ZydisDecodedOperand* operands,
+                          Xbyak::CodeGenerator& c) {
     bool immediateForm = operands[1].type == ZYDIS_OPERAND_TYPE_IMMEDIATE &&
                          operands[2].type == ZYDIS_OPERAND_TYPE_IMMEDIATE;
 
@@ -161,7 +188,9 @@ static void GenerateEXTRQ(const ZydisDecodedOperand* operands, Xbyak::CodeGenera
             mask = (1ULL << length) - 1;
         }
 
-        ASSERT_MSG(length + index <= 64, "length + index must be less than or equal to 64.");
+        if (length + index > 64) {
+            mask = 0xFFFF'FFFF'FFFF'FFFF;
+        }
 
         // Get lower qword from xmm register
         c.vmovq(scratch1, xmm_dst);
@@ -175,8 +204,8 @@ static void GenerateEXTRQ(const ZydisDecodedOperand* operands, Xbyak::CodeGenera
         c.mov(scratch2, mask);
         c.and_(scratch1, scratch2);
 
-        // Writeback to xmm register, extrq instruction says top 64-bits are undefined so we don't
-        // care to preserve them
+        // Writeback to xmm register, extrq instruction says top 64-bits are undefined but zeroed on
+        // AMD CPUs
         c.vmovq(xmm_dst, scratch1);
 
         c.pop(scratch2);
@@ -245,7 +274,8 @@ static void GenerateEXTRQ(const ZydisDecodedOperand* operands, Xbyak::CodeGenera
     }
 }
 
-static void GenerateINSERTQ(const ZydisDecodedOperand* operands, Xbyak::CodeGenerator& c) {
+static void GenerateINSERTQ(void* /* address */, const ZydisDecodedOperand* operands,
+                            Xbyak::CodeGenerator& c) {
     bool immediateForm = operands[2].type == ZYDIS_OPERAND_TYPE_IMMEDIATE &&
                          operands[3].type == ZYDIS_OPERAND_TYPE_IMMEDIATE;
 
@@ -284,7 +314,9 @@ static void GenerateINSERTQ(const ZydisDecodedOperand* operands, Xbyak::CodeGene
             mask_value = (1ULL << length) - 1;
         }
 
-        ASSERT_MSG(length + index <= 64, "length + index must be less than or equal to 64.");
+        if (length + index > 64) {
+            mask_value = 0xFFFF'FFFF'FFFF'FFFF;
+        }
 
         c.vmovq(scratch1, xmm_src);
         c.vmovq(scratch2, xmm_dst);
@@ -304,8 +336,9 @@ static void GenerateINSERTQ(const ZydisDecodedOperand* operands, Xbyak::CodeGene
         // dst |= src
         c.or_(scratch2, scratch1);
 
-        // Insert scratch2 into low 64 bits of dst, upper 64 bits are unaffected
-        c.vpinsrq(xmm_dst, xmm_dst, scratch2, 0);
+        // Insert scratch2 into low 64 bits of dst, upper 64 bits are undefined but zeroed on AMD
+        // CPUs
+        c.vmovq(xmm_dst, scratch2);
 
         c.pop(mask);
         c.pop(scratch2);
@@ -371,7 +404,7 @@ static void GenerateINSERTQ(const ZydisDecodedOperand* operands, Xbyak::CodeGene
         c.and_(scratch2, mask);
         c.or_(scratch2, scratch1);
 
-        // Upper 64 bits are undefined in insertq
+        // Upper 64 bits are undefined in insertq but AMD CPUs zero them
         c.vmovq(xmm_dst, scratch2);
 
         c.pop(mask);
@@ -383,8 +416,44 @@ static void GenerateINSERTQ(const ZydisDecodedOperand* operands, Xbyak::CodeGene
     }
 }
 
+static void ReplaceMOVNT(void* address, u8 rep_prefix) {
+    // Find the opcode byte
+    // There can be any amount of prefixes but the instruction can't be more than 15 bytes
+    // And we know for sure this is a MOVNTSS/MOVNTSD
+    bool found = false;
+    bool rep_prefix_found = false;
+    int index = 0;
+    u8* ptr = reinterpret_cast<u8*>(address);
+    for (int i = 0; i < 15; i++) {
+        if (ptr[i] == rep_prefix) {
+            rep_prefix_found = true;
+        } else if (ptr[i] == 0x2B) {
+            index = i;
+            found = true;
+            break;
+        }
+    }
+
+    // Some sanity checks
+    ASSERT(found);
+    ASSERT(index >= 2);
+    ASSERT(ptr[index - 1] == 0x0F);
+    ASSERT(rep_prefix_found);
+
+    // This turns the MOVNTSS/MOVNTSD to a MOVSS/MOVSD m, xmm
+    ptr[index] = 0x11;
+}
+
+static void ReplaceMOVNTSS(void* address, const ZydisDecodedOperand*, Xbyak::CodeGenerator&) {
+    ReplaceMOVNT(address, 0xF3);
+}
+
+static void ReplaceMOVNTSD(void* address, const ZydisDecodedOperand*, Xbyak::CodeGenerator&) {
+    ReplaceMOVNT(address, 0xF2);
+}
+
 using PatchFilter = bool (*)(const ZydisDecodedOperand*);
-using InstructionGenerator = void (*)(const ZydisDecodedOperand*, Xbyak::CodeGenerator&);
+using InstructionGenerator = void (*)(void*, const ZydisDecodedOperand*, Xbyak::CodeGenerator&);
 struct PatchInfo {
     /// Filter for more granular patch conditions past just the instruction mnemonic.
     PatchFilter filter;
@@ -396,16 +465,26 @@ struct PatchInfo {
     bool trampoline;
 };
 
-static const std::unordered_map<ZydisMnemonic, PatchInfo> Patches = {
+static const std::unordered_map<ZydisMnemonic, std::vector<PatchInfo>> Patches = {
     // SSE4a
-    {ZYDIS_MNEMONIC_EXTRQ, {FilterNoSSE4a, GenerateEXTRQ, true}},
-    {ZYDIS_MNEMONIC_INSERTQ, {FilterNoSSE4a, GenerateINSERTQ, true}},
+    {ZYDIS_MNEMONIC_EXTRQ, {{FilterNoSSE4a, GenerateEXTRQ, true}}},
+    {ZYDIS_MNEMONIC_INSERTQ, {{FilterNoSSE4a, GenerateINSERTQ, true}}},
+    {ZYDIS_MNEMONIC_MOVNTSS, {{FilterNoSSE4a, ReplaceMOVNTSS, false}}},
+    {ZYDIS_MNEMONIC_MOVNTSD, {{FilterNoSSE4a, ReplaceMOVNTSD, false}}},
 
+#if !defined(__APPLE__)
+    // FS segment patches
+    // These first two patches are for accesses to the stack canary, fs:[0x28]
+    {ZYDIS_MNEMONIC_XOR, {{FilterStackCheck, GenerateStackCheck, false}}},
+    {ZYDIS_MNEMONIC_MOV,
+     {{FilterStackCheck, GenerateStackCanary, false},
 #if defined(_WIN32)
-    // Windows needs a trampoline.
-    {ZYDIS_MNEMONIC_MOV, {FilterTcbAccess, GenerateTcbAccess, true}},
-#elif !defined(__APPLE__)
-    {ZYDIS_MNEMONIC_MOV, {FilterTcbAccess, GenerateTcbAccess, false}},
+      // Windows needs a trampoline for Tcb accesses.
+      {FilterTcbAccess, GenerateTcbAccess, true}
+#else
+      {FilterTcbAccess, GenerateTcbAccess, false}
+#endif
+     }},
 #endif
 };
 
@@ -457,51 +536,53 @@ static std::pair<bool, u64> TryPatch(u8* code, PatchModule* module) {
     }
 
     if (Patches.contains(instruction.mnemonic)) {
-        const auto& patch_info = Patches.at(instruction.mnemonic);
-        bool needs_trampoline = patch_info.trampoline;
-        if (patch_info.filter(operands)) {
-            auto& patch_gen = module->patch_gen;
+        const auto& patches = Patches.at(instruction.mnemonic);
+        for (const auto& patch_info : patches) {
+            bool needs_trampoline = patch_info.trampoline;
+            if (patch_info.filter(operands)) {
+                auto& patch_gen = module->patch_gen;
 
-            if (needs_trampoline && instruction.length < 5) {
-                // Trampoline is needed but instruction is too short to patch.
-                // Return false and length to signal to AOT compilation that this instruction
-                // should be skipped and handled at runtime.
-                return std::make_pair(false, instruction.length);
-            }
+                if (needs_trampoline && instruction.length < 5) {
+                    // Trampoline is needed but instruction is too short to patch.
+                    // Return false and length to signal to AOT compilation that this instruction
+                    // should be skipped and handled at runtime.
+                    return std::make_pair(false, instruction.length);
+                }
 
-            // Reset state and move to current code position.
-            patch_gen.reset();
-            patch_gen.setSize(code - patch_gen.getCode());
+                // Reset state and move to current code position.
+                patch_gen.reset();
+                patch_gen.setSize(code - patch_gen.getCode());
 
-            if (needs_trampoline) {
-                auto& trampoline_gen = module->trampoline_gen;
-                const auto trampoline_ptr = trampoline_gen.getCurr();
+                if (needs_trampoline) {
+                    auto& trampoline_gen = module->trampoline_gen;
+                    const auto trampoline_ptr = trampoline_gen.getCurr();
 
-                patch_info.generator(operands, trampoline_gen);
+                    patch_info.generator(code, operands, trampoline_gen);
 
-                // Return to the following instruction at the end of the trampoline.
-                trampoline_gen.jmp(code + instruction.length);
+                    // Return to the following instruction at the end of the trampoline.
+                    trampoline_gen.jmp(code + instruction.length);
 
-                // Replace instruction with near jump to the trampoline.
-                patch_gen.jmp(trampoline_ptr, Xbyak::CodeGenerator::LabelType::T_NEAR);
-            } else {
-                patch_info.generator(operands, patch_gen);
-            }
+                    // Replace instruction with near jump to the trampoline.
+                    patch_gen.jmp(trampoline_ptr, Xbyak::CodeGenerator::LabelType::T_NEAR);
+                } else {
+                    patch_info.generator(code, operands, patch_gen);
+                }
 
-            const auto patch_size = patch_gen.getCurr() - code;
-            if (patch_size > 0) {
-                ASSERT_MSG(instruction.length >= patch_size,
-                           "Instruction {} with length {} is too short to replace at: {}",
-                           ZydisMnemonicGetString(instruction.mnemonic), instruction.length,
-                           fmt::ptr(code));
+                const auto patch_size = patch_gen.getCurr() - code;
+                if (patch_size > 0) {
+                    ASSERT_MSG(instruction.length >= patch_size,
+                               "Instruction {} with length {} is too short to replace at: {}",
+                               ZydisMnemonicGetString(instruction.mnemonic), instruction.length,
+                               fmt::ptr(code));
 
-                // Fill remaining space with nops.
-                patch_gen.nop(instruction.length - patch_size);
+                    // Fill remaining space with nops.
+                    patch_gen.nop(instruction.length - patch_size);
 
-                module->patched.insert(code);
-                LOG_DEBUG(Core, "Patched instruction '{}' at: {}",
-                          ZydisMnemonicGetString(instruction.mnemonic), fmt::ptr(code));
-                return std::make_pair(true, instruction.length);
+                    module->patched.insert(code);
+                    LOG_DEBUG(Core, "Patched instruction '{}' at: {}",
+                              ZydisMnemonicGetString(instruction.mnemonic), fmt::ptr(code));
+                    return std::make_pair(true, instruction.length);
+                }
             }
         }
     }
@@ -594,6 +675,7 @@ static bool TryExecuteIllegalInstruction(void* ctx, void* code_address) {
         lowQWordDst >>= index;
         lowQWordDst &= mask;
 
+        memset((u8*)dst + sizeof(u64), 0, sizeof(u64));
         memcpy(dst, &lowQWordDst, sizeof(lowQWordDst));
 
         Common::IncrementRip(ctx, 4);
@@ -634,6 +716,7 @@ static bool TryExecuteIllegalInstruction(void* ctx, void* code_address) {
         lowQWordDst &= ~(mask << index);
         lowQWordDst |= lowQWordSrc << index;
 
+        memset((u8*)dst + sizeof(u64), 0, sizeof(u64));
         memcpy(dst, &lowQWordDst, sizeof(lowQWordDst));
 
         Common::IncrementRip(ctx, 4);
@@ -705,9 +788,14 @@ static bool PatchesIllegalInstructionHandler(void* context) {
             ZydisDecodedOperand operands[ZYDIS_MAX_OPERAND_COUNT];
             const auto status =
                 Common::Decoder::Instance()->decodeInstruction(instruction, operands, code_address);
-            LOG_ERROR(Core, "Failed to patch address {:x} -- mnemonic: {}", (u64)code_address,
-                      ZYAN_SUCCESS(status) ? ZydisMnemonicGetString(instruction.mnemonic)
-                                           : "Failed to decode");
+            if (ZYAN_SUCCESS(status) && instruction.mnemonic == ZydisMnemonic::ZYDIS_MNEMONIC_UD2)
+                [[unlikely]] {
+                UNREACHABLE_MSG("ud2 at code address {:#x}", reinterpret_cast<u64>(code_address));
+            }
+            UNREACHABLE_MSG("Failed to patch address {:x} -- mnemonic: {}",
+                            reinterpret_cast<u64>(code_address),
+                            ZYAN_SUCCESS(status) ? ZydisMnemonicGetString(instruction.mnemonic)
+                                                 : "Failed to decode");
         }
     }
 

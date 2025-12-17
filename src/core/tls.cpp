@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <mutex>
@@ -17,6 +17,10 @@
 #include <sys/mman.h>
 #elif !defined(ARCH_X86_64)
 #include <pthread.h>
+#endif
+#if defined(__linux__) && defined(ARCH_X86_64)
+#include <asm/prctl.h>
+#include <sys/prctl.h>
 #endif
 
 namespace Core {
@@ -51,7 +55,7 @@ Tcb* GetTcbBase() {
 // Apple x86_64
 
 // Reserve space in the 32-bit address range for allocating TCB pages.
-asm(".zerofill TCB_SPACE,TCB_SPACE,__guest_system,0x3FC000");
+asm(".zerofill TCB_SPACE,TCB_SPACE,__tcb_space,0x3FC000");
 
 struct LdtPage {
     void* tcb;
@@ -156,13 +160,12 @@ Tcb* GetTcbBase() {
 // Other POSIX x86_64
 
 void SetTcbBase(void* image_address) {
-    asm volatile("wrgsbase %0" ::"r"(image_address) : "memory");
+    const int ret = syscall(SYS_arch_prctl, ARCH_SET_GS, (unsigned long)image_address);
+    ASSERT_MSG(ret == 0, "Failed to set GS base: errno {}", errno);
 }
 
 Tcb* GetTcbBase() {
-    Tcb* tcb;
-    asm volatile("rdgsbase %0" : "=r"(tcb)::"memory");
-    return tcb;
+    return Libraries::Kernel::g_curthread->tcb;
 }
 
 #else

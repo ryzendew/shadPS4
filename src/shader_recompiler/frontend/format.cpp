@@ -397,7 +397,7 @@ constexpr std::array<InstFormat, 27> InstructionFormatSOPP = {{
     // 17 = S_SENDMSGHALT
     {InstClass::ScalarProgFlow, InstCategory::FlowControl, 0, 1, ScalarType::Any, ScalarType::Any},
     // 18 = S_TRAP
-    {InstClass::Undefined, InstCategory::Undefined, 0, 1, ScalarType::Any, ScalarType::Any},
+    {InstClass::Undefined, InstCategory::FlowControl, 0, 1, ScalarType::Any, ScalarType::Any},
     // 19 = S_ICACHE_INV
     {InstClass::ScalarCache, InstCategory::FlowControl, 0, 1, ScalarType::Any, ScalarType::Any},
     // 20 = S_INCPERFLEVEL
@@ -1837,11 +1837,17 @@ constexpr std::array<InstFormat, 71> InstructionFormatVOP1 = {{
     // 22 = V_CVT_F64_U32
     {InstClass::VectorConv, InstCategory::VectorALU, 1, 1, ScalarType::Uint32, ScalarType::Float64},
     // 23 = V_TRUNC_F64
-    {InstClass::VectorConv, InstCategory::VectorALU, 1, 1, ScalarType::Float64,
+    {InstClass::VectorFpRound64, InstCategory::VectorALU, 1, 1, ScalarType::Float64,
      ScalarType::Float64},
-    {},
-    {},
-    {},
+    // 24 = V_CEIL_F64
+    {InstClass::VectorFpRound64, InstCategory::VectorALU, 1, 1, ScalarType::Float64,
+     ScalarType::Float64},
+    // 25 = V_RNDNE_F64
+    {InstClass::VectorFpRound64, InstCategory::VectorALU, 1, 1, ScalarType::Float64,
+     ScalarType::Float64},
+    // 26 = V_FLOOR_F64
+    {InstClass::VectorFpRound64, InstCategory::VectorALU, 1, 1, ScalarType::Float64,
+     ScalarType::Float64},
     {},
     {},
     {},

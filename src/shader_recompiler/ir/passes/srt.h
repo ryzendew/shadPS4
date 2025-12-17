@@ -7,9 +7,14 @@
 #include <boost/container/small_vector.hpp>
 #include "common/types.h"
 
+namespace Serialization {
+struct Archive;
+}
+
 namespace Shader {
 
 using PFN_SrtWalker = void PS4_SYSV_ABI (*)(const u32* /*user_data*/, u32* /*flat_dst*/);
+PFN_SrtWalker RegisterWalkerCode(const u8* ptr, size_t size);
 
 struct PersistentSrtInfo {
     // Special case when fetch shader uses step rates.
@@ -20,18 +25,11 @@ struct PersistentSrtInfo {
     };
 
     PFN_SrtWalker walker_func{};
-    boost::container::small_vector<SrtSharpReservation, 2> srt_reservations;
+    size_t walker_func_size{};
     u32 flattened_bufsize_dw = 16; // NumUserDataRegs
 
-    // Special case for fetch shaders because we don't generate IR to read from step rate buffers,
-    // so we won't see usage with GetUserData/ReadConst.
-    // Reserve space in the flattened buffer for a sharp ahead of time
-    u32 ReserveSharp(u32 sgpr_base, u32 dword_offset, u32 num_dwords) {
-        u32 rv = flattened_bufsize_dw;
-        srt_reservations.emplace_back(sgpr_base, dword_offset, num_dwords);
-        flattened_bufsize_dw += num_dwords;
-        return rv;
-    }
+    void Serialize(Serialization::Archive& ar) const;
+    bool Deserialize(Serialization::Archive& ar);
 };
 
 } // namespace Shader

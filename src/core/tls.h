@@ -1,10 +1,13 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
 #include <cstring>
 #include "common/types.h"
+#ifdef _WIN32
+#include <malloc.h>
+#endif
 
 namespace Xbyak {
 class CodeGenerator;
@@ -43,7 +46,12 @@ Tcb* GetTcbBase();
 void EnsureThreadInitialized();
 
 template <size_t size>
-__attribute__((optnone)) void ClearStack() {
+#ifdef __clang__
+__attribute__((optnone))
+#else
+__attribute__((optimize("O0")))
+#endif
+void ClearStack() {
     volatile void* buf = alloca(size);
     memset(const_cast<void*>(buf), 0, size);
     buf = nullptr;

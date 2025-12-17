@@ -1,9 +1,9 @@
-// SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
+// SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <mutex>
 #include "common/assert.h"
 #include "common/debug.h"
+#include "common/thread.h"
 #include "imgui/renderer/texture_manager.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -18,6 +18,8 @@ Scheduler::Scheduler(const Instance& instance)
     profiler_scope = reinterpret_cast<tracy::VkCtxScope*>(std::malloc(sizeof(tracy::VkCtxScope)));
 #endif
     AllocateWorkerCommandBuffers();
+    priority_pending_ops_thread =
+        std::jthread(std::bind_front(&Scheduler::PriorityPendingOpsThread, this));
 }
 
 Scheduler::~Scheduler() {
@@ -34,18 +36,13 @@ void Scheduler::BeginRendering(const RenderState& new_state) {
     is_rendering = true;
     render_state = new_state;
 
-    const auto width =
-        render_state.width != std::numeric_limits<u32>::max() ? render_state.width : 1;
-    const auto height =
-        render_state.height != std::numeric_limits<u32>::max() ? render_state.height : 1;
-
     const vk::RenderingInfo rendering_info = {
         .renderArea =
             {
                 .offset = {0, 0},
-                .extent = {width, height},
+                .extent = {render_state.width, render_state.height},
             },
-        .layerCount = 1,
+        .layerCount = render_state.num_layers,
         .colorAttachmentCount = render_state.num_color_attachments,
         .pColorAttachments = render_state.num_color_attachments > 0
                                  ? render_state.color_attachments.data()
@@ -90,12 +87,11 @@ void Scheduler::Wait(u64 tick) {
         Flush(info);
     }
     master_semaphore.Wait(tick);
+}
 
-    // CAUTION: This can introduce unexpected variation in the wait time.
-    // We don't currently sync the GPU, and some games are very sensitive to this.
-    // If this becomes a problem, it can be commented out.
-    // Idealy we would implement proper gpu sync.
-    while (!pending_ops.empty() && pending_ops.front().gpu_tick <= tick) {
+void Scheduler::PopPendingOperations() {
+    master_semaphore.Refresh();
+    while (!pending_ops.empty() && master_semaphore.IsFree(pending_ops.front().gpu_tick)) {
         pending_ops.front().callback();
         pending_ops.pop();
     }
@@ -107,9 +103,7 @@ void Scheduler::AllocateWorkerCommandBuffers() {
     };
 
     current_cmdbuf = command_pool.Commit();
-    auto begin_result = current_cmdbuf.begin(begin_info);
-    ASSERT_MSG(begin_result == vk::Result::eSuccess, "Failed to begin command buffer: {}",
-               vk::to_string(begin_result));
+    Check(current_cmdbuf.begin(begin_info));
 
     // Invalidate dynamic state so it gets applied to the new command buffer.
     dynamic_state.Invalidate();
@@ -137,9 +131,7 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
 #endif
 
     EndRendering();
-    auto end_result = current_cmdbuf.end();
-    ASSERT_MSG(end_result == vk::Result::eSuccess, "Failed to end command buffer: {}",
-               vk::to_string(end_result));
+    Check(current_cmdbuf.end());
 
     const vk::Semaphore timeline = master_semaphore.Handle();
     info.AddSignal(timeline, signal_value);
@@ -150,20 +142,20 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
     };
 
     const vk::TimelineSemaphoreSubmitInfo timeline_si = {
-        .waitSemaphoreValueCount = static_cast<u32>(info.wait_ticks.size()),
+        .waitSemaphoreValueCount = info.num_wait_semas,
         .pWaitSemaphoreValues = info.wait_ticks.data(),
-        .signalSemaphoreValueCount = static_cast<u32>(info.signal_ticks.size()),
+        .signalSemaphoreValueCount = info.num_signal_semas,
         .pSignalSemaphoreValues = info.signal_ticks.data(),
     };
 
     const vk::SubmitInfo submit_info = {
         .pNext = &timeline_si,
-        .waitSemaphoreCount = static_cast<u32>(info.wait_semas.size()),
+        .waitSemaphoreCount = info.num_wait_semas,
         .pWaitSemaphores = info.wait_semas.data(),
         .pWaitDstStageMask = wait_stage_masks.data(),
         .commandBufferCount = 1U,
         .pCommandBuffers = &current_cmdbuf,
-        .signalSemaphoreCount = static_cast<u32>(info.signal_semas.size()),
+        .signalSemaphoreCount = info.num_signal_semas,
         .pSignalSemaphores = info.signal_semas.data(),
     };
 
@@ -175,9 +167,32 @@ void Scheduler::SubmitExecution(SubmitInfo& info) {
     AllocateWorkerCommandBuffers();
 
     // Apply pending operations
-    while (!pending_ops.empty() && IsFree(pending_ops.front().gpu_tick)) {
-        pending_ops.front().callback();
-        pending_ops.pop();
+    PopPendingOperations();
+}
+
+void Scheduler::PriorityPendingOpsThread(std::stop_token stoken) {
+    Common::SetCurrentThreadName("shadPS4:GpuSchedPriorityPendingOpsRunner");
+
+    while (!stoken.stop_requested()) {
+        PendingOp op;
+        {
+            std::unique_lock lk(priority_pending_ops_mutex);
+            priority_pending_ops_cv.wait(lk, stoken,
+                                         [this] { return !priority_pending_ops.empty(); });
+            if (stoken.stop_requested()) {
+                break;
+            }
+
+            op = std::move(priority_pending_ops.front());
+            priority_pending_ops.pop();
+        }
+
+        master_semaphore.Wait(op.gpu_tick);
+        if (stoken.stop_requested()) {
+            break;
+        }
+
+        op.callback();
     }
 }
 
@@ -304,9 +319,11 @@ void DynamicState::Commit(const Instance& instance, const vk::CommandBuffer& cmd
     }
     if (dirty_state.primitive_restart_enable) {
         dirty_state.primitive_restart_enable = false;
-        if (instance.IsPrimitiveRestartDisableSupported()) {
-            cmdbuf.setPrimitiveRestartEnable(primitive_restart_enable);
-        }
+        cmdbuf.setPrimitiveRestartEnable(primitive_restart_enable);
+    }
+    if (dirty_state.rasterizer_discard_enable) {
+        dirty_state.rasterizer_discard_enable = false;
+        cmdbuf.setRasterizerDiscardEnable(rasterizer_discard_enable);
     }
     if (dirty_state.cull_mode) {
         dirty_state.cull_mode = false;
@@ -318,13 +335,23 @@ void DynamicState::Commit(const Instance& instance, const vk::CommandBuffer& cmd
     }
     if (dirty_state.blend_constants) {
         dirty_state.blend_constants = false;
-        cmdbuf.setBlendConstants(blend_constants);
+        cmdbuf.setBlendConstants(blend_constants.data());
     }
     if (dirty_state.color_write_masks) {
         dirty_state.color_write_masks = false;
         if (instance.IsDynamicColorWriteMaskSupported()) {
             cmdbuf.setColorWriteMaskEXT(0, color_write_masks);
         }
+    }
+    if (dirty_state.line_width) {
+        dirty_state.line_width = false;
+        cmdbuf.setLineWidth(line_width);
+    }
+    if (dirty_state.feedback_loop_enabled && instance.IsAttachmentFeedbackLoopLayoutSupported()) {
+        dirty_state.feedback_loop_enabled = false;
+        cmdbuf.setAttachmentFeedbackLoopEnableEXT(feedback_loop_enabled
+                                                      ? vk::ImageAspectFlagBits::eColor
+                                                      : vk::ImageAspectFlagBits::eNone);
     }
 }
 

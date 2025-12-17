@@ -6,6 +6,7 @@
 #include "shader_recompiler/frontend/structured_control_flow.h"
 #include "shader_recompiler/ir/passes/ir_passes.h"
 #include "shader_recompiler/ir/post_order.h"
+#include "shader_recompiler/profile.h"
 #include "shader_recompiler/recompiler.h"
 
 namespace Shader {
@@ -28,7 +29,7 @@ IR::BlockList GenerateBlocks(const IR::AbstractSyntaxList& syntax_list) {
     return blocks;
 }
 
-IR::Program TranslateProgram(std::span<const u32> code, Pools& pools, Info& info,
+IR::Program TranslateProgram(const std::span<const u32>& code, Pools& pools, Info& info,
                              RuntimeInfo& runtime_info, const Profile& profile) {
     // Ensure first instruction is expected.
     constexpr u32 token_mov_vcchi = 0xBEEB03FF;
@@ -54,8 +55,8 @@ IR::Program TranslateProgram(std::span<const u32> code, Pools& pools, Info& info
     Gcn::CFG cfg{gcn_block_pool, program.ins_list};
 
     // Structurize control flow graph and create program.
-    program.syntax_list = Shader::Gcn::BuildASL(pools.inst_pool, pools.block_pool, cfg,
-                                                program.info, runtime_info, profile);
+    program.syntax_list =
+        Shader::Gcn::BuildASL(pools.inst_pool, pools.block_pool, cfg, info, runtime_info, profile);
     program.blocks = GenerateBlocks(program.syntax_list);
     program.post_order_blocks = Shader::IR::PostOrder(program.syntax_list.front());
 
@@ -78,12 +79,13 @@ IR::Program TranslateProgram(std::span<const u32> code, Pools& pools, Info& info
     Shader::Optimization::FlattenExtendedUserdataPass(program);
     Shader::Optimization::ResourceTrackingPass(program);
     Shader::Optimization::LowerBufferFormatToRaw(program);
+    Shader::Optimization::SharedMemorySimplifyPass(program, profile);
     Shader::Optimization::SharedMemoryToStoragePass(program, runtime_info, profile);
     Shader::Optimization::SharedMemoryBarrierPass(program, runtime_info, profile);
     Shader::Optimization::IdentityRemovalPass(program.blocks);
     Shader::Optimization::DeadCodeEliminationPass(program);
     Shader::Optimization::ConstantPropagationPass(program.post_order_blocks);
-    Shader::Optimization::CollectShaderInfoPass(program);
+    Shader::Optimization::CollectShaderInfoPass(program, profile);
 
     Shader::IR::DumpProgram(program, info);
 
