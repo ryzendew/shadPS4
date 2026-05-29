@@ -231,7 +231,7 @@ Id EmitContext::GetBufferSize(const u32 sharp_idx) {
 }
 
 void EmitContext::DefineBufferProperties() {
-    if (!profile.needs_buffer_offsets && profile.supports_robust_buffer_access) {
+    if (!profile.needs_buffer_offsets) {
         return;
     }
     for (u32 i = 0; i < buffers.size(); i++) {
@@ -242,59 +242,31 @@ void EmitContext::DefineBufferProperties() {
             continue;
         }
 
-        // Only load and apply buffer offsets if host GPU alignment is larger than guest.
-        if (profile.needs_buffer_offsets) {
-            const u32 half = PushData::BufOffsetIndex + (binding >> 4);
-            const u32 comp = (binding & 0xf) >> 2;
-            const u32 offset = (binding & 0x3) << 3;
-            const Id ptr{OpAccessChain(TypePointer(spv::StorageClass::PushConstant, U32[1]),
-                                       push_data_block, ConstU32(half), ConstU32(comp))};
-            const Id value{OpLoad(U32[1], ptr)};
+        const u32 half = PushData::BufOffsetIndex + (binding >> 4);
+        const u32 comp = (binding & 0xf) >> 2;
+        const u32 offset = (binding & 0x3) << 3;
+        const Id ptr{OpAccessChain(TypePointer(spv::StorageClass::PushConstant, U32[1]),
+                                   push_data_block, ConstU32(half), ConstU32(comp))};
+        const Id value{OpLoad(U32[1], ptr)};
 
-            const Id buf_offset{OpBitFieldUExtract(U32[1], value, ConstU32(offset), ConstU32(8U))};
-            Name(buf_offset, fmt::format("buf{}_off", binding));
-            buffer.Offset(PointerSize::B8) = buf_offset;
+        const Id buf_offset{OpBitFieldUExtract(U32[1], value, ConstU32(offset), ConstU32(8U))};
+        Name(buf_offset, fmt::format("buf{}_off", binding));
+        buffer.Offset(PointerSize::B8) = buf_offset;
 
-            if (True(desc.used_types & IR::Type::U16)) {
-                const Id buf_word_offset{OpShiftRightLogical(U32[1], buf_offset, ConstU32(1U))};
-                Name(buf_word_offset, fmt::format("buf{}_word_off", binding));
-                buffer.Offset(PointerSize::B16) = buf_word_offset;
-            }
-            if (True(desc.used_types & IR::Type::U32)) {
-                const Id buf_dword_offset{OpShiftRightLogical(U32[1], buf_offset, ConstU32(2U))};
-                Name(buf_dword_offset, fmt::format("buf{}_dword_off", binding));
-                buffer.Offset(PointerSize::B32) = buf_dword_offset;
-            }
-            if (True(desc.used_types & IR::Type::U64)) {
-                const Id buf_qword_offset{OpShiftRightLogical(U32[1], buf_offset, ConstU32(3U))};
-                Name(buf_qword_offset, fmt::format("buf{}_qword_off", binding));
-                buffer.Offset(PointerSize::B64) = buf_qword_offset;
-            }
+        if (True(desc.used_types & IR::Type::U16)) {
+            const Id buf_word_offset{OpShiftRightLogical(U32[1], buf_offset, ConstU32(1U))};
+            Name(buf_word_offset, fmt::format("buf{}_word_off", binding));
+            buffer.Offset(PointerSize::B16) = buf_word_offset;
         }
-
-        // Only load size if performing bounds checks.
-        if (!profile.supports_robust_buffer_access) {
-            const Id buf_size{desc.sharp_idx == std::numeric_limits<u32>::max()
-                                  ? ConstU32(desc.inline_cbuf.GetSize())
-                                  : GetBufferSize(desc.sharp_idx)};
-            Name(buf_size, fmt::format("buf{}_size", binding));
-            buffer.Size(PointerSize::B8) = buf_size;
-
-            if (True(desc.used_types & IR::Type::U16)) {
-                const Id buf_word_size{OpShiftRightLogical(U32[1], buf_size, ConstU32(1U))};
-                Name(buf_word_size, fmt::format("buf{}_short_size", binding));
-                buffer.Size(PointerSize::B16) = buf_word_size;
-            }
-            if (True(desc.used_types & IR::Type::U32)) {
-                const Id buf_dword_size{OpShiftRightLogical(U32[1], buf_size, ConstU32(2U))};
-                Name(buf_dword_size, fmt::format("buf{}_dword_size", binding));
-                buffer.Size(PointerSize::B32) = buf_dword_size;
-            }
-            if (True(desc.used_types & IR::Type::U64)) {
-                const Id buf_qword_size{OpShiftRightLogical(U32[1], buf_size, ConstU32(3U))};
-                Name(buf_qword_size, fmt::format("buf{}_qword_size", binding));
-                buffer.Size(PointerSize::B64) = buf_qword_size;
-            }
+        if (True(desc.used_types & IR::Type::U32)) {
+            const Id buf_dword_offset{OpShiftRightLogical(U32[1], buf_offset, ConstU32(2U))};
+            Name(buf_dword_offset, fmt::format("buf{}_dword_off", binding));
+            buffer.Offset(PointerSize::B32) = buf_dword_offset;
+        }
+        if (True(desc.used_types & IR::Type::U64)) {
+            const Id buf_qword_offset{OpShiftRightLogical(U32[1], buf_offset, ConstU32(3U))};
+            Name(buf_qword_offset, fmt::format("buf{}_qword_off", binding));
+            buffer.Offset(PointerSize::B64) = buf_qword_offset;
         }
     }
 }
@@ -364,7 +336,7 @@ void EmitContext::DefineInputs() {
         }
         break;
     }
-    case LogicalStage::Fragment:
+    case LogicalStage::Fragment: {
         if (info.loads.GetAny(IR::Attribute::FragCoord)) {
             frag_coord = DefineVariable(F32[4], spv::BuiltIn::FragCoord, spv::StorageClass::Input);
         }
@@ -418,7 +390,13 @@ void EmitContext::DefineInputs() {
                                                     spv::StorageClass::Input);
             }
         }
-        for (s32 i = 0; i < runtime_info.fs_info.num_inputs; i++) {
+
+        const bool has_clip_distance_inputs = runtime_info.fs_info.clip_distance_emulation;
+        // Clip distances attribute vector is the last in inputs array
+        const auto num_inputs =
+            runtime_info.fs_info.num_inputs - (has_clip_distance_inputs ? 1 : 0);
+
+        for (s32 i = 0; i < num_inputs; i++) {
             const auto& input = runtime_info.fs_info.inputs[i];
             if (input.IsDefault()) {
                 continue;
@@ -428,12 +406,13 @@ void EmitContext::DefineInputs() {
             const auto [primary, auxiliary] = info.fs_interpolation[i];
             const Id type = F32[num_components];
             const Id attr_id = [&] {
+                const auto bind_location = input.param_index + (has_clip_distance_inputs ? 1 : 0);
                 if (primary == Qualifier::PerVertex &&
                     profile.supports_fragment_shader_barycentric) {
-                    return Name(DefineInput(TypeArray(type, ConstU32(3U)), input.param_index),
+                    return Name(DefineInput(TypeArray(type, ConstU32(3U)), bind_location),
                                 fmt::format("fs_in_attr{}_p", i));
                 }
-                return Name(DefineInput(type, input.param_index), fmt::format("fs_in_attr{}", i));
+                return Name(DefineInput(type, bind_location), fmt::format("fs_in_attr{}", i));
             }();
             if (primary == Qualifier::PerVertex) {
                 Decorate(attr_id, profile.supports_amd_shader_explicit_vertex_parameter
@@ -450,7 +429,15 @@ void EmitContext::DefineInputs() {
             input_params[i] = GetAttributeInfo(AmdGpu::NumberFormat::Float, attr_id, num_components,
                                                false, false, primary == Qualifier::PerVertex);
         }
+
+        if (has_clip_distance_inputs) {
+            const auto type = F32[MaxEmulatedClipDistances];
+            const auto attr_id = Name(DefineInput(type, 0), fmt::format("cldist_attr{}", 0));
+            input_params[num_inputs] = GetAttributeInfo(AmdGpu::NumberFormat::Float, attr_id,
+                                                        MaxEmulatedClipDistances, false);
+        }
         break;
+    }
     case LogicalStage::Compute:
         if (info.loads.GetAny(IR::Attribute::WorkgroupIndex) ||
             info.loads.GetAny(IR::Attribute::WorkgroupId)) {
@@ -505,7 +492,8 @@ void EmitContext::DefineInputs() {
         const u32 num_attrs = Common::AlignUp(runtime_info.hs_info.ls_stride, 16) >> 4;
         if (num_attrs > 0) {
             const Id per_vertex_type{TypeArray(F32[4], ConstU32(num_attrs))};
-            // The input vertex count isn't statically known, so make length 32 (what glslang does)
+            // The input vertex count isn't statically known, so make length 32 (what
+            // glslang does)
             const Id patch_array_type{TypeArray(per_vertex_type, ConstU32(32u))};
             input_attr_array = DefineInput(patch_array_type, 0);
             Name(input_attr_array, "in_attrs");
@@ -516,10 +504,12 @@ void EmitContext::DefineInputs() {
         tess_coord = DefineInput(F32[3], std::nullopt, spv::BuiltIn::TessCoord);
         primitive_id = DefineVariable(U32[1], spv::BuiltIn::PrimitiveId, spv::StorageClass::Input);
 
-        const u32 num_attrs = Common::AlignUp(runtime_info.vs_info.hs_output_cp_stride, 16) >> 4;
+        const u32 num_attrs =
+            Common::AlignUp(runtime_info.hs_es_vs_info.hs_output_cp_stride, 16) >> 4;
         if (num_attrs > 0) {
             const Id per_vertex_type{TypeArray(F32[4], ConstU32(num_attrs))};
-            // The input vertex count isn't statically known, so make length 32 (what glslang does)
+            // The input vertex count isn't statically known, so make length 32 (what
+            // glslang does)
             const Id patch_array_type{TypeArray(per_vertex_type, ConstU32(32u))};
             input_attr_array = DefineInput(patch_array_type, 0);
             Name(input_attr_array, "in_attrs");
@@ -546,7 +536,11 @@ void EmitContext::DefineVertexBlock() {
     const std::array<Id, 8> zero{f32_zero_value, f32_zero_value, f32_zero_value, f32_zero_value,
                                  f32_zero_value, f32_zero_value, f32_zero_value, f32_zero_value};
     output_position = DefineVariable(F32[4], spv::BuiltIn::Position, spv::StorageClass::Output);
-    if (info.stores.GetAny(IR::Attribute::ClipDistance)) {
+    const bool needs_clip_distance_emulation = l_stage == LogicalStage::Vertex &&
+                                               stage == Stage::Vertex &&
+                                               profile.needs_clip_distance_emulation;
+    const auto has_clip_distance_outputs = info.stores.GetAny(IR::Attribute::ClipDistance);
+    if (has_clip_distance_outputs && !needs_clip_distance_emulation) {
         const Id type{TypeArray(F32[1], ConstU32(8U))};
         const Id initializer{ConstantComposite(type, zero)};
         clip_distances = DefineVariable(type, spv::BuiltIn::ClipDistance, spv::StorageClass::Output,
@@ -583,16 +577,29 @@ void EmitContext::DefineOutputs() {
                 Name(output_attr_array, "out_attrs");
             }
         } else {
+            const bool needs_clip_distance_emulation =
+                stage == Stage::Vertex && profile.needs_clip_distance_emulation &&
+                info.stores.GetAny(IR::Attribute::ClipDistance);
+            u32 num_attrs = 0u;
             for (u32 i = 0; i < IR::NumParams; i++) {
                 const IR::Attribute param{IR::Attribute::Param0 + i};
                 if (!info.stores.GetAny(param)) {
                     continue;
                 }
                 const u32 num_components = info.stores.NumComponents(param);
-                const Id id{DefineOutput(F32[num_components], i)};
+                const Id id{
+                    DefineOutput(F32[num_components], i + (needs_clip_distance_emulation ? 1 : 0))};
                 Name(id, fmt::format("out_attr{}", i));
                 output_params[i] =
                     GetAttributeInfo(AmdGpu::NumberFormat::Float, id, num_components, true);
+                ++num_attrs;
+            }
+
+            if (needs_clip_distance_emulation) {
+                clip_distances = Id{DefineOutput(F32[MaxEmulatedClipDistances], 0)};
+                output_params[num_attrs] = GetAttributeInfo(
+                    AmdGpu::NumberFormat::Float, clip_distances, MaxEmulatedClipDistances, true);
+                Name(clip_distances, fmt::format("cldist_attr{}", 0));
             }
         }
         break;
@@ -611,10 +618,12 @@ void EmitContext::DefineOutputs() {
             Decorate(output_tess_level_inner, spv::Decoration::Patch);
         }
 
-        const u32 num_attrs = Common::AlignUp(runtime_info.hs_info.hs_output_cp_stride, 16) >> 4;
+        const u32 num_attrs =
+            Common::AlignUp(runtime_info.hs_es_vs_info.hs_output_cp_stride, 16) >> 4;
         if (num_attrs > 0) {
             const Id per_vertex_type{TypeArray(F32[4], ConstU32(num_attrs))};
-            // The input vertex count isn't statically known, so make length 32 (what glslang does)
+            // The input vertex count isn't statically known, so make length 32 (what
+            // glslang does)
             const Id patch_array_type{TypeArray(
                 per_vertex_type, ConstU32(runtime_info.hs_info.NumOutputControlPoints()))};
             output_attr_array = DefineOutput(patch_array_type, 0);
@@ -677,7 +686,8 @@ void EmitContext::DefineOutputs() {
             ++num_render_targets;
         }
         // Dual source blending allows at most 2 render targets, one for each source.
-        // Fewer targets are allowed but the missing blending source values will be undefined.
+        // Fewer targets are allowed but the missing blending source values will be
+        // undefined.
         ASSERT_MSG(!runtime_info.fs_info.dual_source_blending || num_render_targets <= 2,
                    "Dual source blending enabled, there must be at most two MRT exports");
         break;
@@ -929,23 +939,33 @@ void EmitContext::DefineImagesAndSamplers() {
         const auto nfmt = sharp.GetNumberFmt();
         const bool is_integer = AmdGpu::IsInteger(nfmt);
         const bool is_storage = image_desc.is_written;
+        const MipStorageFallbackMode mip_fallback_mode = image_desc.mip_fallback_mode;
         const VectorIds& data_types = GetAttributeType(*this, nfmt);
         const Id sampled_type = data_types[1];
         const Id image_type{ImageType(*this, image_desc, sampled_type)};
-        const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, image_type)};
+
+        const u32 num_bindings = image_desc.NumBindings(info);
+        Id pointee_type = image_type;
+        if (mip_fallback_mode == MipStorageFallbackMode::DynamicIndex) {
+            pointee_type = TypeArray(pointee_type, ConstU32(num_bindings));
+        }
+
+        const Id pointer_type{TypePointer(spv::StorageClass::UniformConstant, pointee_type)};
         const Id id{AddGlobalVariable(pointer_type, spv::StorageClass::UniformConstant)};
-        Decorate(id, spv::Decoration::Binding, binding.unified++);
+        Decorate(id, spv::Decoration::Binding, binding.unified);
+        binding.unified += num_bindings;
         Decorate(id, spv::Decoration::DescriptorSet, 0U);
+        // TODO better naming for resources (flattened sharp_idx is not informative)
         Name(id, fmt::format("{}_{}{}", stage, "img", image_desc.sharp_idx));
         images.push_back({
             .data_types = &data_types,
             .id = id,
             .sampled_type = is_storage ? sampled_type : TypeSampledImage(image_type),
-            .pointer_type = pointer_type,
             .image_type = image_type,
             .view_type = sharp.GetViewType(image_desc.is_array),
             .is_integer = is_integer,
             .is_storage = is_storage,
+            .mip_fallback_mode = mip_fallback_mode,
         });
         interfaces.push_back(id);
     }

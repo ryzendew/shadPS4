@@ -34,6 +34,7 @@
 #include <winsock2.h>
 #else
 #include <sys/select.h>
+#include <sys/stat.h>
 #endif
 
 namespace D = Core::Devices;
@@ -86,11 +87,13 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
     if (!read && !write && !rdwr) {
         // Start by checking for invalid flags.
         *__Error() = POSIX_EINVAL;
+        LOG_ERROR(Kernel_Fs, "Opening path {} failed, invalid flags {:#x}", raw_path, flags);
         return -1;
     }
 
     if (strlen(raw_path) > 255) {
         *__Error() = POSIX_ENAMETOOLONG;
+        LOG_ERROR(Kernel_Fs, "Opening path {} failed, path is too long", raw_path);
         return -1;
     }
 
@@ -136,6 +139,7 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
             // Error if file exists
             h->DeleteHandle(handle);
             *__Error() = POSIX_EEXIST;
+            LOG_ERROR(Kernel_Fs, "Creating {} failed, file already exists", raw_path);
             return -1;
         }
 
@@ -144,6 +148,7 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
                 // Can't create files in a read only directory
                 h->DeleteHandle(handle);
                 *__Error() = POSIX_EROFS;
+                LOG_ERROR(Kernel_Fs, "Creating {} failed, path is read-only", raw_path);
                 return -1;
             }
             // Create a file if it doesn't exist
@@ -153,6 +158,7 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
         // If we're not creating a file, and it doesn't exist, return ENOENT
         h->DeleteHandle(handle);
         *__Error() = POSIX_ENOENT;
+        LOG_ERROR(Kernel_Fs, "Opening path {} failed, file does not exist", raw_path);
         return -1;
     }
 
@@ -168,6 +174,7 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
             // This will trigger when create & directory is specified, this is expected.
             h->DeleteHandle(handle);
             *__Error() = POSIX_ENOTDIR;
+            LOG_ERROR(Kernel_Fs, "Opening directory {} failed, file is not a directory", raw_path);
             return -1;
         }
 
@@ -175,6 +182,8 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
             // Cannot open directories with any type of write access
             h->DeleteHandle(handle);
             *__Error() = POSIX_EISDIR;
+            LOG_ERROR(Kernel_Fs, "Opening directory {} failed, cannot open directories for writing",
+                      raw_path);
             return -1;
         }
 
@@ -182,6 +191,8 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
             // Cannot open directories with truncate
             h->DeleteHandle(handle);
             *__Error() = POSIX_EISDIR;
+            LOG_ERROR(Kernel_Fs, "Opening directory {} failed, cannot truncate directories",
+                      raw_path);
             return -1;
         }
 
@@ -200,6 +211,7 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
             // Can't open files with truncate flag in a read only directory
             h->DeleteHandle(handle);
             *__Error() = POSIX_EROFS;
+            LOG_ERROR(Kernel_Fs, "Truncating {} failed, path is read-only", raw_path);
             return -1;
         } else if (truncate) {
             // Open the file as read-write so we can truncate regardless of flags.
@@ -218,6 +230,7 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
             // Can't open files with write/read-write access in a read only directory
             h->DeleteHandle(handle);
             *__Error() = POSIX_EROFS;
+            LOG_ERROR(Kernel_Fs, "Opening {} for writing failed, path is read-only", raw_path);
             return -1;
         } else if (write) {
             if (append) {
@@ -243,6 +256,7 @@ s32 PS4_SYSV_ABI open(const char* raw_path, s32 flags, u16 mode) {
         // Open failed in platform-specific code, errno needs to be converted.
         h->DeleteHandle(handle);
         SetPosixErrno(e);
+        LOG_ERROR(Kernel_Fs, "Opening {} failed, error = {}", raw_path, *__Error());
         return -1;
     }
 
@@ -257,7 +271,6 @@ s32 PS4_SYSV_ABI posix_open(const char* filename, s32 flags, u16 mode) {
 s32 PS4_SYSV_ABI sceKernelOpen(const char* path, s32 flags, /* SceKernelMode*/ u16 mode) {
     s32 result = open(path, flags, mode);
     if (result < 0) {
-        LOG_ERROR(Kernel_Fs, "error = {}", *__Error());
         return ErrnoToSceKernelError(*__Error());
     }
     return result;
@@ -751,6 +764,30 @@ s32 PS4_SYSV_ABI fstat(s32 fd, OrbisKernelStat* sb) {
         sb->st_size = file->f.GetSize();
         sb->st_blksize = 512;
         sb->st_blocks = (sb->st_size + 511) / 512;
+#if defined(__linux__) || defined(__FreeBSD__)
+        struct stat filestat = {};
+        stat(file->f.GetPath().c_str(), &filestat);
+        sb->st_atim = *reinterpret_cast<OrbisKernelTimespec*>(&filestat.st_atim);
+        sb->st_mtim = *reinterpret_cast<OrbisKernelTimespec*>(&filestat.st_mtim);
+        sb->st_ctim = *reinterpret_cast<OrbisKernelTimespec*>(&filestat.st_ctim);
+#elif defined(__APPLE__)
+        struct stat filestat = {};
+        stat(file->f.GetPath().c_str(), &filestat);
+        sb->st_atim = *reinterpret_cast<OrbisKernelTimespec*>(&filestat.st_atimespec);
+        sb->st_mtim = *reinterpret_cast<OrbisKernelTimespec*>(&filestat.st_mtimespec);
+        sb->st_ctim = *reinterpret_cast<OrbisKernelTimespec*>(&filestat.st_ctimespec);
+#else
+        const auto ft = std::filesystem::last_write_time(file->f.GetPath());
+        const auto sctp = std::chrono::time_point_cast<std::chrono::nanoseconds>(
+            ft - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+        const auto secs = std::chrono::time_point_cast<std::chrono::seconds>(sctp);
+        const auto nsecs = std::chrono::duration_cast<std::chrono::nanoseconds>(sctp - secs);
+
+        sb->st_mtim.tv_sec = static_cast<int64_t>(secs.time_since_epoch().count());
+        sb->st_mtim.tv_nsec = static_cast<int64_t>(nsecs.count());
+        sb->st_atim = sb->st_mtim;
+        sb->st_ctim = sb->st_mtim;
+#endif
         // TODO incomplete
         break;
     }
@@ -767,7 +804,8 @@ s32 PS4_SYSV_ABI fstat(s32 fd, OrbisKernelStat* sb) {
         return file->socket->fstat(sb);
     }
     case Core::FileSys::FileType::Epoll:
-    case Core::FileSys::FileType::Resolver: {
+    case Core::FileSys::FileType::Resolver:
+    case Core::FileSys::FileType::Equeue: {
         LOG_ERROR(Kernel_Fs, "(STUBBED) file type {}", magic_enum::enum_name(file->type.load()));
         break;
     }
@@ -1185,25 +1223,26 @@ s32 PS4_SYSV_ABI sceKernelUnlink(const char* path) {
 }
 
 #ifdef _WIN32
-#define __FD_SETSIZE 1024
 
 typedef struct {
-    unsigned long fds_bits[__FD_SETSIZE / (8 * sizeof(unsigned long))];
+    u64 fds_bits[16];
 } fd_set_posix;
 
-#define FD_SET_POSIX(fd, set)                                                                      \
-    ((set)->fds_bits[(fd) / (8 * sizeof(unsigned long))] |=                                        \
-     (1UL << ((fd) % (8 * sizeof(unsigned long)))))
+static void FD_SET_POSIX(s32 fd, fd_set_posix* set) {
+    set->fds_bits[fd / (8 * sizeof(u64))] |= (1ULL << (fd % (8 * sizeof(u64))));
+}
 
-#define FD_CLR_POSIX(fd, set)                                                                      \
-    ((set)->fds_bits[(fd) / (8 * sizeof(unsigned long))] &=                                        \
-     ~(1UL << ((fd) % (8 * sizeof(unsigned long)))))
+static void FD_CLR_POSIX(s32 fd, fd_set_posix* set) {
+    set->fds_bits[fd / (8 * sizeof(u64))] &= ~(1ULL << (fd % (8 * sizeof(u64))));
+}
 
-#define FD_ISSET_POSIX(fd, set)                                                                    \
-    (((set)->fds_bits[(fd) / (8 * sizeof(unsigned long))] &                                        \
-      (1UL << ((fd) % (8 * sizeof(unsigned long))))) != 0)
+static bool FD_ISSET_POSIX(s32 fd, fd_set_posix* set) {
+    return (set->fds_bits[fd / (8 * sizeof(u64))] & (1ULL << (fd % (8 * sizeof(u64))))) != 0;
+}
 
-#define FD_ZERO_POSIX(set) memset((set), 0, sizeof(fd_set_posix))
+static void FD_ZERO_POSIX(fd_set_posix* set) {
+    std::memset(set, 0, sizeof(fd_set_posix));
+}
 
 s32 PS4_SYSV_ABI posix_select(s32 nfds, fd_set_posix* readfds, fd_set_posix* writefds,
                               fd_set_posix* exceptfds, OrbisKernelTimeval* timeout) {
@@ -1262,7 +1301,8 @@ s32 PS4_SYSV_ABI posix_select(s32 nfds, fd_set_posix* readfds, fd_set_posix* wri
         if (file->type == Core::FileSys::FileType::Regular ||
             file->type == Core::FileSys::FileType::Device) {
             // Disk files always ready
-            if (want_read) {
+            // For devices, stdin (fd 0) is never read-ready.
+            if (want_read && i != 0) {
                 FD_SET_POSIX(i, &read_ready);
             }
             if (want_write) {
@@ -1510,6 +1550,7 @@ void RegisterFileSystem(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("mqQMh1zPPT8", "libkernel", 1, "libkernel", posix_fstat);
     LIB_FUNCTION("kBwCPsYX-m4", "libkernel", 1, "libkernel", sceKernelFstat);
     LIB_FUNCTION("ih4CD9-gghM", "libkernel", 1, "libkernel", posix_ftruncate);
+    LIB_FUNCTION("ih4CD9-gghM", "libScePosix", 1, "libkernel", posix_ftruncate);
     LIB_FUNCTION("VW3TVZiM4-E", "libkernel", 1, "libkernel", sceKernelFtruncate);
     LIB_FUNCTION("NN01qLRhiqU", "libScePosix", 1, "libkernel", posix_rename);
     LIB_FUNCTION("NN01qLRhiqU", "libkernel", 1, "libkernel", posix_rename);
@@ -1526,6 +1567,7 @@ void RegisterFileSystem(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("2G6i6hMIUUY", "libkernel", 1, "libkernel", posix_getdents);
     LIB_FUNCTION("taRWhTJFTgE", "libkernel", 1, "libkernel", sceKernelGetdirentries);
     LIB_FUNCTION("C2kJ-byS5rM", "libkernel", 1, "libkernel", posix_pwrite);
+    LIB_FUNCTION("C2kJ-byS5rM", "libScePosix", 1, "libkernel", posix_pwrite);
     LIB_FUNCTION("FCcmRZhWtOk", "libScePosix", 1, "libkernel", posix_pwritev);
     LIB_FUNCTION("FCcmRZhWtOk", "libkernel", 1, "libkernel", posix_pwritev);
     LIB_FUNCTION("nKWi-N2HBV4", "libkernel", 1, "libkernel", sceKernelPwrite);

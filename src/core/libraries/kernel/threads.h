@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -6,6 +6,7 @@
 #include <functional>
 #include "common/polyfill_thread.h"
 #include "core/libraries/kernel/threads/pthread.h"
+#include "core/tls.h"
 
 namespace Core::Loader {
 class SymbolsResolver;
@@ -27,6 +28,17 @@ int PS4_SYSV_ABI posix_pthread_create(PthreadT* thread, const PthreadAttrT* attr
                                       PthreadEntryFunc start_routine, void* arg);
 
 int PS4_SYSV_ABI posix_pthread_join(PthreadT pthread, void** thread_return);
+int PS4_SYSV_ABI posix_pthread_detach(PthreadT pthread);
+
+int PS4_SYSV_ABI posix_pthread_mutexattr_init(PthreadMutexAttrT* attr);
+int PS4_SYSV_ABI posix_pthread_mutexattr_settype(PthreadMutexAttrT* attr, PthreadMutexType type);
+int PS4_SYSV_ABI posix_pthread_mutexattr_destroy(PthreadMutexAttrT* attr);
+
+int PS4_SYSV_ABI scePthreadMutexInit(PthreadMutexT* mutex, const PthreadMutexAttrT* mutex_attr,
+                                     const char* name);
+int PS4_SYSV_ABI posix_pthread_mutex_lock(PthreadMutexT* mutex);
+int PS4_SYSV_ABI posix_pthread_mutex_unlock(PthreadMutexT* mutex);
+int PS4_SYSV_ABI posix_pthread_mutex_destroy(PthreadMutexT* mutex);
 
 void RegisterThreads(Core::Loader::SymbolsResolver* sym);
 

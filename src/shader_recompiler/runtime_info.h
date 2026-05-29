@@ -34,10 +34,25 @@ enum class LogicalStage : u32 {
 };
 
 constexpr u32 MaxStageTypes = static_cast<u32>(LogicalStage::NumLogicalStages);
+constexpr auto MaxEmulatedClipDistances = 4u;
 
 constexpr Stage StageFromIndex(size_t index) noexcept {
     return static_cast<Stage>(index);
 }
+
+struct CommonHsEsVsRuntimeInfo {
+    u32 hs_output_cp_stride;
+
+    bool operator<=>(const CommonHsEsVsRuntimeInfo&) const noexcept = default;
+};
+
+struct CommonEsVsRuntimeInfo : protected CommonHsEsVsRuntimeInfo {
+    AmdGpu::TessellationType tess_type;
+    AmdGpu::TessellationTopology tess_topology;
+    AmdGpu::TessellationPartitioning tess_partitioning;
+
+    bool operator<=>(const CommonEsVsRuntimeInfo&) const noexcept = default;
+};
 
 struct LocalRuntimeInfo {
     u32 ls_stride;
@@ -45,10 +60,10 @@ struct LocalRuntimeInfo {
     auto operator<=>(const LocalRuntimeInfo&) const noexcept = default;
 };
 
-struct ExportRuntimeInfo {
+struct ExportRuntimeInfo : protected CommonEsVsRuntimeInfo {
     u32 vertex_data_size;
 
-    auto operator<=>(const ExportRuntimeInfo&) const noexcept = default;
+    bool operator<=>(const ExportRuntimeInfo&) const noexcept = default;
 };
 
 enum class Output : u8 {
@@ -78,7 +93,7 @@ enum class Output : u8 {
 };
 using OutputMap = std::array<Output, 4>;
 
-struct VertexRuntimeInfo {
+struct VertexRuntimeInfo : protected CommonEsVsRuntimeInfo {
     u32 num_outputs;
     std::array<OutputMap, 3> outputs;
     bool tess_emulated_primitive{};
@@ -86,41 +101,17 @@ struct VertexRuntimeInfo {
     bool clip_disable{};
     u32 step_rate_0;
     u32 step_rate_1;
-    AmdGpu::TessellationType tess_type;
-    AmdGpu::TessellationTopology tess_topology;
-    AmdGpu::TessellationPartitioning tess_partitioning;
-    u32 hs_output_cp_stride{};
 
-    bool operator==(const VertexRuntimeInfo& other) const noexcept {
-        return num_outputs == other.num_outputs && outputs == other.outputs &&
-               tess_emulated_primitive == other.tess_emulated_primitive &&
-               emulate_depth_negative_one_to_one == other.emulate_depth_negative_one_to_one &&
-               clip_disable == other.clip_disable && tess_type == other.tess_type &&
-               tess_topology == other.tess_topology &&
-               tess_partitioning == other.tess_partitioning &&
-               hs_output_cp_stride == other.hs_output_cp_stride &&
-               step_rate_0 == other.step_rate_0 && step_rate_1 == other.step_rate_1;
-    }
-
-    void InitFromTessConstants(Shader::TessellationDataConstantBuffer& tess_constants) {
-        hs_output_cp_stride = tess_constants.hs_cp_stride;
-    }
+    bool operator<=>(const VertexRuntimeInfo& other) const noexcept = default;
 };
 
-struct HullRuntimeInfo {
+struct HullRuntimeInfo : protected CommonHsEsVsRuntimeInfo {
     u32 num_input_control_points;
     u32 num_threads;
     AmdGpu::TessellationType tess_type;
     bool offchip_lds_enable;
     u32 ls_stride;
-    u32 hs_output_cp_stride;
     u32 hs_output_base;
-
-    void InitFromTessConstants(Shader::TessellationDataConstantBuffer& tess_constants) {
-        ls_stride = tess_constants.ls_stride;
-        hs_output_cp_stride = tess_constants.hs_cp_stride;
-        hs_output_base = tess_constants.hs_output_base;
-    }
 
     bool operator==(const HullRuntimeInfo&) const = default;
 
@@ -201,14 +192,16 @@ struct FragmentRuntimeInfo {
     std::array<PsInput, 32> inputs;
     std::array<PsColorBuffer, MaxColorBuffers> color_buffers;
     AmdGpu::ShaderExportFormat z_export_format;
-    u8 mrtz_mask;
-    bool dual_source_blending;
+    u8 mrtz_mask{};
+    bool dual_source_blending{false};
+    bool clip_distance_emulation{false};
 
     bool operator==(const FragmentRuntimeInfo& other) const noexcept {
         return std::ranges::equal(color_buffers, other.color_buffers) &&
                en_flags == other.en_flags && addr_flags == other.addr_flags &&
                num_inputs == other.num_inputs && z_export_format == other.z_export_format &&
                mrtz_mask == other.mrtz_mask && dual_source_blending == other.dual_source_blending &&
+               clip_distance_emulation == other.clip_distance_emulation &&
                std::ranges::equal(inputs.begin(), inputs.begin() + num_inputs, other.inputs.begin(),
                                   other.inputs.begin() + num_inputs);
     }
@@ -235,7 +228,9 @@ struct RuntimeInfo {
     u32 num_input_vgprs;
     u32 num_allocated_vgprs;
     AmdGpu::FpDenormMode fp_denorm_mode32;
+    AmdGpu::FpDenormMode fp_denorm_mode16_64;
     AmdGpu::FpRoundMode fp_round_mode32;
+    AmdGpu::FpRoundMode fp_round_mode16_64;
     union {
         LocalRuntimeInfo ls_info;
         ExportRuntimeInfo es_info;
@@ -244,6 +239,10 @@ struct RuntimeInfo {
         GeometryRuntimeInfo gs_info;
         FragmentRuntimeInfo fs_info;
         ComputeRuntimeInfo cs_info;
+        // Hs/Es/VsRuntimeInfo inherit from these so we can
+        // access common info with correct offsets
+        CommonHsEsVsRuntimeInfo hs_es_vs_info;
+        CommonEsVsRuntimeInfo es_vs_info;
     };
 
     void Initialize(Stage stage_) {
@@ -269,6 +268,14 @@ struct RuntimeInfo {
             return ls_info == other.ls_info;
         default:
             return true;
+        }
+    }
+
+    void InitFromTessConstants(Shader::TessellationDataConstantBuffer& tess_constants) {
+        hs_es_vs_info.hs_output_cp_stride = tess_constants.hs_cp_stride;
+        if (stage == Stage::Hull) {
+            hs_info.ls_stride = tess_constants.ls_stride;
+            hs_info.hs_output_base = tess_constants.hs_output_base;
         }
     }
 };

@@ -1,9 +1,10 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "common/config.h"
 #include "common/io_file.h"
 #include "common/path_util.h"
+#include "core/emulator_settings.h"
+#include "core/libraries/kernel/process.h"
 #include "shader_recompiler/frontend/decode.h"
 #include "shader_recompiler/frontend/fetch_shader.h"
 #include "shader_recompiler/frontend/translate/translate.h"
@@ -15,8 +16,7 @@
 #include "shader_recompiler/runtime_info.h"
 #include "video_core/amdgpu/resource.h"
 
-#define MAGIC_ENUM_RANGE_MIN 0
-#define MAGIC_ENUM_RANGE_MAX 1515
+#include <numbers>
 #include <magic_enum/magic_enum.hpp>
 
 namespace Shader::Gcn {
@@ -255,6 +255,29 @@ IR::VectorReg Translator::GetScratchVgpr(u32 offset) {
     return it->second;
 };
 
+IR::U1 Translator::GetSrc1(const InstOperand& operand) {
+    switch (operand.field) {
+    case OperandField::VccLo:
+        return ir.GetVcc();
+    case OperandField::ExecLo:
+        return ir.GetExec();
+    case OperandField::ScalarGPR:
+        return ir.GetThreadBitScalarReg(IR::ScalarReg(operand.code));
+    case OperandField::ConstZero:
+        return ir.Imm1(false);
+    case OperandField::SignedConstIntNeg:
+        ASSERT_MSG(-s32(operand.code) + SignedConstIntNegMin - 1 == -1,
+                   "SignedConstIntNeg must be -1");
+        return ir.Imm1(true);
+    case OperandField::LiteralConst:
+        ASSERT_MSG(operand.code == 0 || operand.code == std::numeric_limits<u32>::max(),
+                   "Unsupported literal {:#x}", operand.code);
+        return ir.Imm1(operand.code & 1);
+    default:
+        UNREACHABLE_MSG("Unknown field {}", u32(operand.field));
+    }
+}
+
 template <typename T>
 T Translator::GetSrc(const InstOperand& operand) {
     constexpr bool is_float = std::is_same_v<T, IR::F32>;
@@ -311,6 +334,13 @@ T Translator::GetSrc(const InstOperand& operand) {
     case OperandField::ConstFloatNeg_4_0:
         value = get_imm(-4.0f);
         break;
+    case OperandField::Inv2Pi:
+        value = get_imm(static_cast<float>(1.0f / (2.0f * std::numbers::pi)));
+        break;
+    case OperandField::Sdwa:
+        UNREACHABLE_MSG("unhandled SDWA");
+    case OperandField::Dpp:
+        UNREACHABLE_MSG("unhandled DPP");
     case OperandField::VccLo:
         if constexpr (is_float) {
             value = ir.BitCast<IR::F32>(ir.GetVccLo());
@@ -340,7 +370,7 @@ T Translator::GetSrc(const InstOperand& operand) {
         }
         break;
     default:
-        UNREACHABLE();
+        UNREACHABLE_MSG("unexpected operand: {}", std::to_underlying(operand.field));
     }
 
     if constexpr (is_float) {
@@ -352,10 +382,10 @@ T Translator::GetSrc(const InstOperand& operand) {
         }
     } else {
         if (operand.input_modifier.abs) {
-            value = ir.IAbs(value);
+            value = ir.BitwiseAnd(value, ir.Imm32(0x7FFFFFFFu));
         }
         if (operand.input_modifier.neg) {
-            value = ir.INeg(value);
+            value = ir.BitwiseXor(value, ir.Imm32(0x80000000u));
         }
     }
     return value;
@@ -363,6 +393,265 @@ T Translator::GetSrc(const InstOperand& operand) {
 
 template IR::U32 Translator::GetSrc<IR::U32>(const InstOperand&);
 template IR::F32 Translator::GetSrc<IR::F32>(const InstOperand&);
+
+template <typename T, bool is_signed>
+T Translator::GetSrc16(const InstOperand& operand) {
+    constexpr bool is_float = std::is_same_v<T, IR::F32>;
+
+    const auto get_imm = [&](auto value) -> T {
+        if constexpr (is_float) {
+            return ir.Imm32(std::bit_cast<float>(value));
+        } else {
+            return ir.Imm32(std::bit_cast<u32>(value));
+        }
+    };
+
+    const auto number_format = []() -> AmdGpu::NumberFormat {
+        if constexpr (is_float) {
+            return AmdGpu::NumberFormat::Float;
+        } else {
+            return AmdGpu::NumberFormat::Uint;
+        }
+    }();
+
+    const auto bitcast_to_u = [&](auto value) -> IR::U32 {
+        if constexpr (is_float) {
+            return ir.BitCast<IR::U32>(value);
+        } else {
+            return value;
+        }
+    };
+
+    const auto cast = [&](auto value) -> T {
+        if constexpr (is_float) {
+            return value;
+        } else {
+            return ir.BitFieldExtract(ir.BitCast<IR::U32>(value), ir.Imm32(0), ir.Imm32(16),
+                                      is_signed);
+        }
+    };
+
+    const auto op_sel = operand.op_sel.op_sel;
+
+    T value{};
+    switch (operand.field) {
+    case OperandField::ScalarGPR: {
+        const auto f = ir.GetScalarReg<T>(IR::ScalarReg(operand.code));
+        value = cast(IR::F32{
+            ir.CompositeExtract(ir.Unpack2x16(number_format, bitcast_to_u(f)), op_sel ? 1 : 0)});
+        break;
+    }
+    case OperandField::VectorGPR: {
+        const auto v = ir.GetVectorReg<T>(IR::VectorReg(operand.code));
+        value = cast(IR::F32{
+            ir.CompositeExtract(ir.Unpack2x16(number_format, bitcast_to_u(v)), op_sel ? 1 : 0)});
+        break;
+    }
+    case OperandField::ConstZero:
+        value = get_imm(0U);
+        break;
+    case OperandField::SignedConstIntPos:
+        value = get_imm(operand.code - SignedConstIntPosMin + 1);
+        break;
+    case OperandField::SignedConstIntNeg:
+        value = get_imm(-s32(operand.code) + SignedConstIntNegMin - 1);
+        break;
+    case OperandField::LiteralConst:
+        value = get_imm(operand.code);
+        break;
+    case OperandField::ConstFloatPos_1_0:
+        value = get_imm(1.f);
+        break;
+    case OperandField::ConstFloatPos_0_5:
+        value = get_imm(0.5f);
+        break;
+    case OperandField::ConstFloatPos_2_0:
+        value = get_imm(2.0f);
+        break;
+    case OperandField::ConstFloatPos_4_0:
+        value = get_imm(4.0f);
+        break;
+    case OperandField::ConstFloatNeg_0_5:
+        value = get_imm(-0.5f);
+        break;
+    case OperandField::ConstFloatNeg_1_0:
+        value = get_imm(-1.0f);
+        break;
+    case OperandField::ConstFloatNeg_2_0:
+        value = get_imm(-2.0f);
+        break;
+    case OperandField::ConstFloatNeg_4_0:
+        value = get_imm(-4.0f);
+        break;
+    case OperandField::Inv2Pi:
+        value = get_imm(static_cast<float>(1.0f / (2.0f * std::numbers::pi)));
+        break;
+    case OperandField::Sdwa:
+        LOG_ERROR(Render_Recompiler, "unhandled SDWA");
+        value = get_imm(0U);
+        break;
+    case OperandField::Dpp:
+        LOG_ERROR(Render_Recompiler, "unhandled DPP");
+        value = get_imm(0U);
+        break;
+    case OperandField::VccLo:
+        if constexpr (is_float) {
+            value = IR::F32{
+                ir.CompositeExtract(ir.Unpack2x16(number_format, ir.GetVccLo()), op_sel ? 1 : 0)};
+        } else {
+            value = cast(IR::F32{ir.CompositeExtract(
+                ir.Unpack2x16(number_format, bitcast_to_u(ir.GetVccLo())), op_sel ? 1 : 0)});
+        }
+        break;
+    case OperandField::VccHi:
+        UNREACHABLE();
+        break;
+    case OperandField::M0:
+        UNREACHABLE();
+        break;
+    case OperandField::Scc:
+        UNREACHABLE();
+        break;
+    default:
+        UNREACHABLE_MSG("unexpected operand: {}", std::to_underlying(operand.field));
+    }
+
+    if constexpr (is_float) {
+        if (operand.input_modifier.abs) {
+            value = ir.FPAbs(value);
+        }
+        if (operand.input_modifier.neg) {
+            value = ir.FPNeg(value);
+        }
+    } else {
+        if (operand.input_modifier.abs) {
+            value = ir.BitwiseAnd(value, ir.Imm32(0x7FFFFFFFu));
+        }
+        if (operand.input_modifier.neg) {
+            value = ir.BitwiseXor(value, ir.Imm32(0x80000000u));
+        }
+    }
+    return value;
+}
+
+template IR::U32 Translator::GetSrc16<IR::U32, false>(const InstOperand&);
+template IR::U32 Translator::GetSrc16<IR::U32, true>(const InstOperand&);
+template IR::F32 Translator::GetSrc16<IR::F32, false>(const InstOperand&);
+
+IR::F32 Translator::GetSrcMix(const InstOperand& operand) {
+    const auto get_imm = [&](auto value) -> IR::F32 {
+        return ir.Imm32(std::bit_cast<float>(value));
+    };
+
+    const auto extract = [&](auto value) -> IR::F32 {
+        const auto getter_u = [&]() {
+            if constexpr (std::same_as<decltype(value), IR::ScalarReg>) {
+                return ir.GetScalarReg<IR::U32>(value);
+            } else {
+                return ir.GetVectorReg<IR::U32>(value);
+            }
+        }();
+        if (!operand.op_sel.op_sel_hi) {
+            if constexpr (std::same_as<decltype(value), IR::ScalarReg>) {
+                return ir.GetScalarReg<IR::F32>(value);
+            } else {
+                return ir.GetVectorReg<IR::F32>(value);
+            }
+        } else if (operand.op_sel.op_sel) {
+            return IR::F32{
+                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, getter_u), 1)};
+        } else {
+            return IR::F32{
+                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, getter_u), 0)};
+        }
+    };
+
+    IR::F32 value{};
+    switch (operand.field) {
+    case OperandField::ScalarGPR:
+        value = extract(IR::ScalarReg(operand.code));
+        break;
+    case OperandField::VectorGPR:
+        value = extract(IR::VectorReg(operand.code));
+        break;
+    case OperandField::ConstZero:
+        value = get_imm(0U);
+        break;
+    case OperandField::SignedConstIntPos:
+        value = get_imm(operand.code - SignedConstIntPosMin + 1);
+        break;
+    case OperandField::SignedConstIntNeg:
+        value = get_imm(-s32(operand.code) + SignedConstIntNegMin - 1);
+        break;
+    case OperandField::LiteralConst:
+        value = get_imm(operand.code);
+        break;
+    case OperandField::ConstFloatPos_1_0:
+        value = get_imm(1.f);
+        break;
+    case OperandField::ConstFloatPos_0_5:
+        value = get_imm(0.5f);
+        break;
+    case OperandField::ConstFloatPos_2_0:
+        value = get_imm(2.0f);
+        break;
+    case OperandField::ConstFloatPos_4_0:
+        value = get_imm(4.0f);
+        break;
+    case OperandField::ConstFloatNeg_0_5:
+        value = get_imm(-0.5f);
+        break;
+    case OperandField::ConstFloatNeg_1_0:
+        value = get_imm(-1.0f);
+        break;
+    case OperandField::ConstFloatNeg_2_0:
+        value = get_imm(-2.0f);
+        break;
+    case OperandField::ConstFloatNeg_4_0:
+        value = get_imm(-4.0f);
+        break;
+    case OperandField::VccLo: {
+        if (!operand.op_sel.op_sel_hi) {
+            value = ir.BitCast<IR::F32>(ir.GetVccLo());
+        } else if (operand.op_sel.op_sel) {
+            value = IR::F32{
+                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, ir.GetVccLo()), 1)};
+        } else {
+            value = IR::F32{
+                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, ir.GetVccLo()), 0)};
+        }
+        break;
+    }
+    case OperandField::VccHi:
+        UNREACHABLE();
+        break;
+    case OperandField::M0:
+        UNREACHABLE();
+        break;
+    case OperandField::Scc:
+        UNREACHABLE();
+        break;
+    case OperandField::Inv2Pi:
+        value = get_imm(static_cast<float>(1.0f / (2.0f * std::numbers::pi)));
+        break;
+    case OperandField::Sdwa:
+        UNREACHABLE_MSG("unhandled SDWA");
+        break;
+    case OperandField::Dpp:
+        UNREACHABLE_MSG("unhandled DPP");
+        break;
+    default:
+        UNREACHABLE_MSG("unexpected operand: {}", std::to_underlying(operand.field));
+    }
+
+    if (operand.input_modifier.neg_hi) {
+        value = ir.FPAbs(value);
+    }
+    if (operand.input_modifier.neg) {
+        value = ir.FPNeg(value);
+    }
+    return value;
+}
 
 template <typename T>
 T Translator::GetSrc64(const InstOperand& operand) {
@@ -453,12 +742,175 @@ T Translator::GetSrc64(const InstOperand& operand) {
         if (operand.input_modifier.neg) {
             value = ir.FPNeg(value);
         }
+    } else {
+        // GCN VOP3 abs/neg modifier bits operate on the sign bit (bit 63 for
+        // 64-bit values). Unpack, modify the high dword's bit 31, repack.
+        if (operand.input_modifier.abs) {
+            const auto unpacked = ir.UnpackUint2x32(value);
+            const auto lo = IR::U32{ir.CompositeExtract(unpacked, 0)};
+            const auto hi = IR::U32{ir.CompositeExtract(unpacked, 1)};
+            const auto hi_abs = ir.BitwiseAnd(hi, ir.Imm32(0x7FFFFFFFu));
+            value = ir.PackUint2x32(ir.CompositeConstruct(lo, hi_abs));
+        }
+        if (operand.input_modifier.neg) {
+            const auto unpacked = ir.UnpackUint2x32(value);
+            const auto lo = IR::U32{ir.CompositeExtract(unpacked, 0)};
+            const auto hi = IR::U32{ir.CompositeExtract(unpacked, 1)};
+            const auto hi_neg = ir.BitwiseXor(hi, ir.Imm32(0x80000000u));
+            value = ir.PackUint2x32(ir.CompositeConstruct(lo, hi_neg));
+        }
     }
     return value;
 }
 
 template IR::U64 Translator::GetSrc64<IR::U64>(const InstOperand&);
 template IR::F64 Translator::GetSrc64<IR::F64>(const InstOperand&);
+
+template <typename T, bool is_signed>
+pk_type<T> Translator::GetSrcPk(const InstOperand& operand) {
+    constexpr bool is_float = std::is_same_v<T, IR::F32>;
+
+    const auto get_imm = [&](auto value) -> pk_type<T> {
+        if constexpr (is_float) {
+            auto imm = ir.Imm32(std::bit_cast<float>(value));
+            return {operand.op_sel.op_sel ? ir.Imm32(0.f) : imm,
+                    operand.op_sel.op_sel_hi ? ir.Imm32(0.f) : imm};
+        } else {
+            auto imm = ir.Imm32(std::bit_cast<u32>(value));
+            return {operand.op_sel.op_sel ? ir.Imm32(0U) : imm,
+                    operand.op_sel.op_sel_hi ? ir.Imm32(0U) : imm};
+        }
+    };
+
+    constexpr auto number_format = [&]() {
+        if constexpr (is_float) {
+            return AmdGpu::NumberFormat::Float;
+        } else {
+            return AmdGpu::NumberFormat::Uint;
+        }
+    }();
+
+    const auto cast = [&](auto value) -> T {
+        if constexpr (is_float) {
+            return value;
+        } else {
+            return ir.BitFieldExtract(ir.BitCast<IR::U32>(value), ir.Imm32(0), ir.Imm32(16),
+                                      is_signed);
+        }
+    };
+
+    const auto extract = [&](auto value) -> pk_type<T> {
+        auto v_unpacked = ir.Unpack2x16(number_format, value);
+        return {cast(IR::F32{ir.CompositeExtract(v_unpacked, operand.op_sel.op_sel)}),
+                cast(IR::F32{ir.CompositeExtract(v_unpacked, operand.op_sel.op_sel_hi)})};
+    };
+
+    pk_type<T> value{};
+    switch (operand.field) {
+    case OperandField::ScalarGPR: {
+        value = extract(ir.GetScalarReg<IR::U32>(IR::ScalarReg(operand.code)));
+        break;
+    }
+    case OperandField::VectorGPR: {
+        value = extract(ir.GetVectorReg<IR::U32>(IR::VectorReg(operand.code)));
+        break;
+    }
+    case OperandField::ConstZero: {
+        value = get_imm(0U);
+        break;
+    }
+    case OperandField::SignedConstIntPos: {
+        value = get_imm(operand.code - SignedConstIntPosMin + 1);
+        break;
+    }
+    case OperandField::SignedConstIntNeg: {
+        value = get_imm(-s32(operand.code) + SignedConstIntNegMin - 1);
+        break;
+    }
+    case OperandField::LiteralConst: {
+        value = get_imm(operand.code);
+        break;
+    }
+    case OperandField::ConstFloatPos_1_0: {
+        value = get_imm(1.f);
+        break;
+    }
+    case OperandField::ConstFloatPos_0_5: {
+        value = get_imm(0.5f);
+        break;
+    }
+    case OperandField::ConstFloatPos_2_0: {
+        value = get_imm(2.0f);
+        break;
+    }
+    case OperandField::ConstFloatPos_4_0: {
+        value = get_imm(4.0f);
+        break;
+    }
+    case OperandField::ConstFloatNeg_0_5: {
+        value = get_imm(-0.5f);
+        break;
+    }
+    case OperandField::ConstFloatNeg_1_0: {
+        value = get_imm(-1.0f);
+        break;
+    }
+    case OperandField::ConstFloatNeg_2_0: {
+        value = get_imm(-2.0f);
+        break;
+    }
+    case OperandField::ConstFloatNeg_4_0: {
+        value = get_imm(-4.0f);
+        break;
+    }
+    case OperandField::Inv2Pi: {
+        value = get_imm(1.0f / (2.0f * std::numbers::pi_v<float>));
+        break;
+    }
+    case OperandField::VccLo:
+        value = extract(ir.GetVccLo());
+        break;
+    default:
+        UNREACHABLE_MSG("unexpected operand: {}", std::to_underlying(operand.field));
+    }
+
+    if constexpr (is_float) {
+        if (operand.input_modifier.neg) {
+            value.first = ir.FPNeg(value.first);
+        }
+        if (operand.input_modifier.neg_hi) {
+            value.second = ir.FPNeg(value.second);
+        }
+    } else {
+        if (operand.input_modifier.neg) {
+            value.first = ir.INeg(value.first);
+        }
+        if (operand.input_modifier.neg_hi) {
+            value.second = ir.INeg(value.second);
+        }
+    }
+    return value;
+}
+
+template pk_type<IR::U32> Translator::GetSrcPk<IR::U32, true>(const InstOperand&);
+template pk_type<IR::U32> Translator::GetSrcPk<IR::U32, false>(const InstOperand&);
+template pk_type<IR::F32> Translator::GetSrcPk<IR::F32, false>(const InstOperand&);
+
+void Translator::SetDst1(const InstOperand& operand, const IR::U1& value) {
+    switch (operand.field) {
+    case OperandField::VccLo:
+        ir.SetVcc(value);
+        break;
+    case OperandField::ScalarGPR:
+        ir.SetThreadBitScalarReg(IR::ScalarReg(operand.code), value);
+        break;
+    case OperandField::ExecLo:
+        ir.SetExec(value);
+        break;
+    default:
+        UNREACHABLE_MSG("Unknown field {}", u32(operand.field));
+    }
+}
 
 void Translator::SetDst(const InstOperand& operand, const IR::U32F32& value) {
     IR::U32F32 result = value;
@@ -486,6 +938,67 @@ void Translator::SetDst(const InstOperand& operand, const IR::U32F32& value) {
         UNREACHABLE();
     }
 }
+
+template <bool is_signed>
+void Translator::SetDst16(const InstOperand& operand, const IR::U32F32& value) {
+    IR::U32F32 result = value;
+    if (value.Type() == IR::Type::F32) {
+        if (operand.output_modifier.multiplier != 0.f) {
+            result = ir.FPMul(result, ir.Imm32(operand.output_modifier.multiplier));
+        }
+        if (operand.output_modifier.clamp) {
+            result = ir.FPSaturate(result);
+        }
+    } else {
+        if (operand.output_modifier.clamp) {
+            if constexpr (is_signed) {
+                result = ir.SClamp(result, ir.Imm32(-32768), ir.Imm32(32767));
+            } else {
+                result = ir.UMin(result, ir.Imm32(0xFFFF));
+            }
+        }
+    }
+
+    const auto cast = [&](auto value) -> IR::U32 {
+        if (value.Type() == IR::Type::F32) {
+            return ir.UConvert(32, ir.BitCast<IR::U16>(IR::F16{ir.FPConvert(16, value)}));
+        } else if (value.Type() == IR::Type::U32) {
+            return value;
+        } else {
+            UNREACHABLE();
+        }
+    };
+
+    const auto op_sel = operand.op_sel.op_sel;
+
+    switch (operand.field) {
+    case OperandField::ScalarGPR: {
+        const auto prev_dst = ir.GetScalarReg<IR::U32>(IR::ScalarReg(operand.code));
+        const auto result_16 = cast(result);
+        const auto new_dst =
+            ir.BitFieldInsert(prev_dst, result_16, ir.Imm32(op_sel ? 16 : 0), ir.Imm32(16));
+        return ir.SetScalarReg(IR::ScalarReg(operand.code), new_dst);
+    }
+    case OperandField::VectorGPR: {
+        const auto prev_dst = ir.GetVectorReg<IR::U32>(IR::VectorReg(operand.code));
+        const auto result_16 = cast(result);
+        const auto new_dst =
+            ir.BitFieldInsert(prev_dst, result_16, ir.Imm32(op_sel ? 16 : 0), ir.Imm32(16));
+        return ir.SetVectorReg(IR::VectorReg(operand.code), new_dst);
+    }
+    case OperandField::VccLo:
+        UNREACHABLE();
+    case OperandField::VccHi:
+        UNREACHABLE();
+    case OperandField::M0:
+        UNREACHABLE();
+    default:
+        UNREACHABLE();
+    }
+}
+
+template void Translator::SetDst16<false>(const InstOperand&, const IR::U32F32& value);
+template void Translator::SetDst16<true>(const InstOperand&, const IR::U32F32& value);
 
 void Translator::SetDst64(const InstOperand& operand, const IR::U64F64& value_raw) {
     IR::U64F64 value_untyped = value_raw;
@@ -524,27 +1037,66 @@ void Translator::SetDst64(const InstOperand& operand, const IR::U64F64& value_ra
     }
 }
 
+template <typename T, bool is_signed>
+void Translator::SetDstPk(const InstOperand& operand, const pk_type<T>& value) {
+    pk_type<T> v = value;
+
+    if constexpr (std::is_same_v<T, IR::F32>) {
+        if (operand.output_modifier.clamp) {
+            v = {ir.FPSaturate(v.first), ir.FPSaturate(v.second)};
+        }
+    } else {
+        if (operand.output_modifier.clamp) {
+            if constexpr (is_signed) {
+                auto lower = ir.Imm32(-32768);
+                auto upper = ir.Imm32(32767);
+                v = {ir.SClamp(v.first, lower, upper), ir.SClamp(v.second, lower, upper)};
+            } else {
+                auto imm = ir.Imm32(0xFFFF);
+                v = {ir.UMin(v.first, imm), ir.UMin(v.second, imm)};
+            }
+        }
+    }
+
+    IR::U32 value_raw{};
+    if constexpr (std::is_same_v<T, IR::F32>) {
+        value_raw =
+            ir.Pack2x16(AmdGpu::NumberFormat::Float, ir.CompositeConstruct(v.first, v.second));
+    } else {
+        value_raw = ir.Pack2x16(AmdGpu::NumberFormat::Uint,
+                                ir.CompositeConstruct(ir.BitCast<IR::F32, IR::U32>(v.first),
+                                                      ir.BitCast<IR::F32, IR::U32>(v.second)));
+    }
+    SetDst(operand, value_raw);
+}
+
+template void Translator::SetDstPk<IR::U32, false>(const InstOperand& operand,
+                                                   const pk_type<IR::U32>& value);
+template void Translator::SetDstPk<IR::U32, true>(const InstOperand& operand,
+                                                  const pk_type<IR::U32>& value);
+template void Translator::SetDstPk<IR::F32, false>(const InstOperand& operand,
+                                                   const pk_type<IR::F32>& value);
+
 void Translator::EmitFetch(const GcnInst& inst) {
     const auto code_sgpr_base = inst.src[0].code;
 
-    // The fetch shader must be inlined to access as regular buffers, so that
-    // bounds checks can be emitted to emulate robust buffer access.
-    if (!profile.supports_robust_buffer_access) {
-        const auto* code = GetFetchShaderCode(info, code_sgpr_base);
-        GcnCodeSlice slice(code, code + std::numeric_limits<u32>::max());
-        GcnDecodeContext decoder;
+#if 0
+    // Translate fetch shader inline using regular buffer bindings; useful for debugging.
+    const auto* code = GetFetchShaderCode(info, code_sgpr_base);
+    GcnCodeSlice slice(code, code + std::numeric_limits<u32>::max());
+    GcnDecodeContext decoder;
 
-        // Decode and save instructions
-        while (!slice.atEnd()) {
-            const auto sub_inst = decoder.decodeInstruction(slice);
-            if (sub_inst.opcode == Opcode::S_SETPC_B64) {
-                // Assume we're swapping back to the main shader.
-                break;
-            }
-            TranslateInstruction(sub_inst);
+    // Decode and save instructions
+    while (!slice.atEnd()) {
+        const auto sub_inst = decoder.decodeInstruction(slice);
+        if (sub_inst.opcode == Opcode::S_SETPC_B64) {
+            // Assume we're swapping back to the main shader.
+            break;
         }
-        return;
+        TranslateInstruction(sub_inst);
     }
+    return;
+#endif
 
     info.has_fetch_shader = true;
     info.fetch_shader_sgpr_base = code_sgpr_base;
@@ -552,7 +1104,7 @@ void Translator::EmitFetch(const GcnInst& inst) {
     const auto fetch_data = ParseFetchShader(info);
     ASSERT(fetch_data.has_value());
 
-    if (Config::dumpShaders()) {
+    if (EmulatorSettings.IsDumpShaders()) {
         using namespace Common::FS;
         const auto dump_dir = GetUserPath(PathType::ShaderDir) / "dumps";
         if (!std::filesystem::exists(dump_dir)) {

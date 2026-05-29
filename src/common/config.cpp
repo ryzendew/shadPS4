@@ -1,7 +1,8 @@
-// SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2025-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <fstream>
+#include <map>
 #include <optional>
 #include <string>
 #include <fmt/core.h>
@@ -13,6 +14,8 @@
 #include "common/logging/formatter.h"
 #include "common/path_util.h"
 #include "common/scm_rev.h"
+
+#include "input/input_handler.h"
 
 using std::nullopt;
 using std::optional;
@@ -51,6 +54,10 @@ std::optional<T> get_optional(const toml::value& v, const std::string& key) {
     } else if constexpr (std::is_same_v<T, unsigned int>) {
         if (it->second.is_integer()) {
             return static_cast<u32>(toml::get<unsigned int>(it->second));
+        }
+    } else if constexpr (std::is_same_v<T, unsigned long long>) {
+        if (it->second.is_integer()) {
+            return static_cast<u32>(toml::get<unsigned long long>(it->second));
         }
     } else if constexpr (std::is_same_v<T, double>) {
         if (it->second.is_floating()) {
@@ -136,14 +143,26 @@ static ConfigEntry<int> extraDmemInMbytes(0);
 static ConfigEntry<bool> isPSNSignedIn(false);
 static ConfigEntry<bool> isTrophyPopupDisabled(false);
 static ConfigEntry<double> trophyNotificationDuration(6.0);
-static ConfigEntry<string> logFilter("");
-static ConfigEntry<string> logType("sync");
 static ConfigEntry<string> userName("shadPS4");
 static ConfigEntry<bool> isShowSplash(false);
 static ConfigEntry<string> isSideTrophy("right");
 static ConfigEntry<bool> isConnectedToNetwork(false);
 static bool enableDiscordRPC = false;
 static std::filesystem::path sys_modules_path = {};
+static std::filesystem::path fonts_path = {};
+
+// Log
+static ConfigEntry<bool> logAppend(false);
+static ConfigEntry<bool> logEnable(true);
+static ConfigEntry<string> logFilter("");
+static ConfigEntry<u32> logMaxSkipDuration(5'000);
+static ConfigEntry<bool> logSeparate(false);
+static ConfigEntry<unsigned long long> logSizeLimit(100_MB);
+static ConfigEntry<bool> logSkipDuplicate(true);
+static ConfigEntry<bool> logSync(true);
+#ifdef _WIN32
+static ConfigEntry<string> logType("wincolor");
+#endif
 
 // Input
 static ConfigEntry<int> cursorState(HideCursorState::Idle);
@@ -167,7 +186,7 @@ static ConfigEntry<u32> internalScreenWidth(1280);
 static ConfigEntry<u32> internalScreenHeight(720);
 static ConfigEntry<bool> isNullGpu(false);
 static ConfigEntry<bool> shouldCopyGPUBuffers(false);
-static ConfigEntry<bool> readbacksEnabled(false);
+static ConfigEntry<int> readbacksMode(GpuReadbacksMode::Disabled);
 static ConfigEntry<bool> readbackLinearImagesEnabled(false);
 static ConfigEntry<bool> directMemoryAccessEnabled(false);
 static ConfigEntry<bool> shouldDumpShaders(false);
@@ -197,10 +216,7 @@ static ConfigEntry<bool> pipelineCacheArchive(false);
 // Debug
 static ConfigEntry<bool> isDebugDump(false);
 static ConfigEntry<bool> isShaderDebug(false);
-static ConfigEntry<bool> isSeparateLogFilesEnabled(false);
-static ConfigEntry<bool> isFpsColor(true);
 static ConfigEntry<bool> showFpsCounter(false);
-static ConfigEntry<bool> logEnabled(true);
 
 // GUI
 static std::vector<GameInstallDir> settings_install_dirs = {};
@@ -223,16 +239,6 @@ static string config_version = Common::g_scm_rev;
 // These entries aren't stored in the config
 static bool overrideControllerColor = false;
 static int controllerCustomColorRGB[3] = {0, 0, 255};
-static bool isGameRunning = false;
-static bool load_auto_patches = true;
-
-bool getGameRunning() {
-    return isGameRunning;
-}
-
-void setGameRunning(bool running) {
-    isGameRunning = running;
-}
 
 std::filesystem::path getSysModulesPath() {
     if (sys_modules_path.empty()) {
@@ -243,6 +249,17 @@ std::filesystem::path getSysModulesPath() {
 
 void setSysModulesPath(const std::filesystem::path& path) {
     sys_modules_path = path;
+}
+
+std::filesystem::path getFontsPath() {
+    if (fonts_path.empty()) {
+        return Common::FS::GetUserPath(Common::FS::PathType::FontsDir);
+    }
+    return fonts_path;
+}
+
+void setFontsPath(const std::filesystem::path& path) {
+    fonts_path = path;
 }
 
 int getVolumeSlider() {
@@ -272,9 +289,68 @@ int* GetControllerCustomColor() {
     return controllerCustomColorRGB;
 }
 
-bool getLoggingEnabled() {
-    return logEnabled.get();
+// Log
+bool isLogAppend() {
+    return logAppend.get();
 }
+
+bool isLogEnable() {
+    return logEnable.get();
+}
+
+void setLogEnable(bool enable, bool is_game_specific) {
+    logEnable.set(enable, is_game_specific);
+}
+
+bool getLogEnable() {
+    return logEnable.get();
+}
+
+string getLogFilter() {
+    return logFilter.get();
+}
+
+void setLogFilter(const string& type, bool is_game_specific) {
+    logFilter.set(type, is_game_specific);
+}
+
+u32 getLogMaxSkipDuration() {
+    return logMaxSkipDuration.get();
+}
+
+bool getLogSeparate() {
+    return logSeparate.get();
+}
+
+void setLogSeparate(bool enabled, bool is_game_specific) {
+    logSeparate.set(enabled, is_game_specific);
+}
+
+unsigned long long getLogSizeLimit() {
+    return logSizeLimit.get();
+}
+
+bool getLogSkipDuplicate() {
+    return logSkipDuplicate.get();
+}
+
+void setLogSkipDuplicate(bool enable, bool is_game_specific) {
+    logSkipDuplicate.set(enable, is_game_specific);
+}
+
+bool isLogSync() {
+    return logSync.get();
+}
+
+#ifdef _WIN32
+string getLogType() {
+    return logType.get();
+}
+
+void setLogType(const string& type, bool is_game_specific) {
+    logType.set(type, is_game_specific);
+}
+#endif
 
 void SetControllerCustomColor(int r, int b, int g) {
     controllerCustomColorRGB[0] = r;
@@ -372,7 +448,7 @@ u32 getWindowHeight() {
 }
 
 u32 getInternalScreenWidth() {
-    return internalScreenHeight.get();
+    return internalScreenWidth.get();
 }
 
 u32 getInternalScreenHeight() {
@@ -381,14 +457,6 @@ u32 getInternalScreenHeight() {
 
 s32 getGpuId() {
     return gpuId.get();
-}
-
-string getLogFilter() {
-    return logFilter.get();
-}
-
-string getLogType() {
-    return logType.get();
 }
 
 string getUserName() {
@@ -431,8 +499,8 @@ bool copyGPUCmdBuffers() {
     return shouldCopyGPUBuffers.get();
 }
 
-bool readbacks() {
-    return readbacksEnabled.get();
+int getReadbacksMode() {
+    return readbacksMode.get();
 }
 
 bool readbackLinearImages() {
@@ -463,20 +531,12 @@ bool isPipelineCacheArchived() {
     return pipelineCacheArchive.get();
 }
 
-bool fpsColor() {
-    return isFpsColor.get();
-}
-
 bool getShowFpsCounter() {
     return showFpsCounter.get();
 }
 
 void setShowFpsCounter(bool enable, bool is_game_specific) {
     showFpsCounter.set(enable, is_game_specific);
-}
-
-bool isLoggingEnabled() {
-    return logEnabled.get();
 }
 
 u32 vblankFreq() {
@@ -558,10 +618,6 @@ void setDebugDump(bool enable, bool is_game_specific) {
     isDebugDump.set(enable, is_game_specific);
 }
 
-void setLoggingEnabled(bool enable, bool is_game_specific) {
-    logEnabled.set(enable, is_game_specific);
-}
-
 void setCollectShaderForDebug(bool enable, bool is_game_specific) {
     isShaderDebug.set(enable, is_game_specific);
 }
@@ -586,8 +642,8 @@ void setCopyGPUCmdBuffers(bool enable, bool is_game_specific) {
     shouldCopyGPUBuffers.set(enable, is_game_specific);
 }
 
-void setReadbacks(bool enable, bool is_game_specific) {
-    readbacksEnabled.set(enable, is_game_specific);
+void setReadbacksMode(int mode, bool is_game_specific) {
+    readbacksMode.set(mode, is_game_specific);
 }
 
 void setReadbackLinearImages(bool enable, bool is_game_specific) {
@@ -690,18 +746,6 @@ void setDevKitConsole(bool enable, bool is_game_specific) {
     isDevKit.set(enable, is_game_specific);
 }
 
-void setLogType(const string& type, bool is_game_specific) {
-    logType.set(type, is_game_specific);
-}
-
-void setLogFilter(const string& type, bool is_game_specific) {
-    logFilter.set(type, is_game_specific);
-}
-
-void setSeparateLogFilesEnabled(bool enabled, bool is_game_specific) {
-    isSeparateLogFilesEnabled.set(enabled, is_game_specific);
-}
-
 void setUserName(const string& name, bool is_game_specific) {
     userName.set(name, is_game_specific);
 }
@@ -795,10 +839,6 @@ u32 GetLanguage() {
     return m_language.get();
 }
 
-bool getSeparateLogFilesEnabled() {
-    return isSeparateLogFilesEnabled.get();
-}
-
 bool getPSNSignedIn() {
     return isPSNSignedIn.get();
 }
@@ -855,13 +895,6 @@ void setUsbDeviceBackend(int value, bool is_game_specific) {
     usbDeviceBackend.set(value, is_game_specific);
 }
 
-bool getLoadAutoPatches() {
-    return load_auto_patches;
-}
-void setLoadAutoPatches(bool enable) {
-    load_auto_patches = enable;
-}
-
 void load(const std::filesystem::path& path, bool is_game_specific) {
     // If the configuration file does not exist, create it and return, unless it is game specific
     std::error_code error;
@@ -898,8 +931,6 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
         trophyNotificationDuration.setFromToml(general, "trophyNotificationDuration",
                                                is_game_specific);
         enableDiscordRPC = toml::find_or<bool>(general, "enableDiscordRPC", enableDiscordRPC);
-        logFilter.setFromToml(general, "logFilter", is_game_specific);
-        logType.setFromToml(general, "logType", is_game_specific);
         userName.setFromToml(general, "userName", is_game_specific);
         isShowSplash.setFromToml(general, "showSplash", is_game_specific);
         isSideTrophy.setFromToml(general, "sideTrophy", is_game_specific);
@@ -907,6 +938,23 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
         isConnectedToNetwork.setFromToml(general, "isConnectedToNetwork", is_game_specific);
         defaultControllerID.setFromToml(general, "defaultControllerID", is_game_specific);
         sys_modules_path = toml::find_fs_path_or(general, "sysModulesPath", sys_modules_path);
+        fonts_path = toml::find_fs_path_or(general, "fontsPath", fonts_path);
+    }
+
+    if (data.contains("Log")) {
+        const toml::value& log = data.at("Log");
+
+        logAppend.setFromToml(log, "append", is_game_specific);
+        logEnable.setFromToml(log, "enable", is_game_specific);
+        logFilter.setFromToml(log, "filter", is_game_specific);
+        logMaxSkipDuration.setFromToml(log, "maxSkipDuration", is_game_specific);
+        logSeparate.setFromToml(log, "separate", is_game_specific);
+        logSkipDuplicate.setFromToml(log, "skipDuplicate", is_game_specific);
+        logSizeLimit.setFromToml(log, "sizeLimit", is_game_specific);
+        logSync.setFromToml(log, "sync", is_game_specific);
+#ifdef _WIN32
+        logType.setFromToml(log, "type", is_game_specific);
+#endif
     }
 
     if (data.contains("Input")) {
@@ -939,7 +987,7 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
         internalScreenHeight.setFromToml(gpu, "internalScreenHeight", is_game_specific);
         isNullGpu.setFromToml(gpu, "nullGpu", is_game_specific);
         shouldCopyGPUBuffers.setFromToml(gpu, "copyGPUBuffers", is_game_specific);
-        readbacksEnabled.setFromToml(gpu, "readbacks", is_game_specific);
+        readbacksMode.setFromToml(gpu, "readbacksMode", is_game_specific);
         readbackLinearImagesEnabled.setFromToml(gpu, "readbackLinearImages", is_game_specific);
         directMemoryAccessEnabled.setFromToml(gpu, "directMemoryAccess", is_game_specific);
         shouldDumpShaders.setFromToml(gpu, "dumpShaders", is_game_specific);
@@ -975,11 +1023,8 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
         const toml::value& debug = data.at("Debug");
 
         isDebugDump.setFromToml(debug, "DebugDump", is_game_specific);
-        isSeparateLogFilesEnabled.setFromToml(debug, "isSeparateLogFilesEnabled", is_game_specific);
         isShaderDebug.setFromToml(debug, "CollectShader", is_game_specific);
-        isFpsColor.setFromToml(debug, "FPSColor", is_game_specific);
         showFpsCounter.setFromToml(debug, "showFpsCounter", is_game_specific);
-        logEnabled.setFromToml(debug, "logEnabled", is_game_specific);
         current_version = toml::find_or<std::string>(debug, "ConfigVersion", current_version);
     }
 
@@ -1030,8 +1075,8 @@ void load(const std::filesystem::path& path, bool is_game_specific) {
 
 void sortTomlSections(toml::ordered_value& data) {
     toml::ordered_value ordered_data;
-    std::vector<string> section_order = {"General", "Input", "Audio", "GPU",     "Vulkan",
-                                         "Debug",   "Keys",  "GUI",   "Settings"};
+    std::vector<string> section_order = {"General", "Log",   "Input", "Audio", "GPU",
+                                         "Vulkan",  "Debug", "Keys",  "GUI",   "Settings"};
 
     for (const auto& section : section_order) {
         if (data.contains(section)) {
@@ -1086,8 +1131,6 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
     isTrophyPopupDisabled.setTomlValue(data, "General", "isTrophyPopupDisabled", is_game_specific);
     trophyNotificationDuration.setTomlValue(data, "General", "trophyNotificationDuration",
                                             is_game_specific);
-    logFilter.setTomlValue(data, "General", "logFilter", is_game_specific);
-    logType.setTomlValue(data, "General", "logType", is_game_specific);
     userName.setTomlValue(data, "General", "userName", is_game_specific);
     isShowSplash.setTomlValue(data, "General", "showSplash", is_game_specific);
     isSideTrophy.setTomlValue(data, "General", "sideTrophy", is_game_specific);
@@ -1098,6 +1141,18 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
     }
     isPSNSignedIn.setTomlValue(data, "General", "isPSNSignedIn", is_game_specific);
     isConnectedToNetwork.setTomlValue(data, "General", "isConnectedToNetwork", is_game_specific);
+
+    logAppend.setTomlValue(data, "Log", "append", is_game_specific);
+    logEnable.setTomlValue(data, "Log", "enable", is_game_specific);
+    logFilter.setTomlValue(data, "Log", "filter", is_game_specific);
+    logMaxSkipDuration.setTomlValue(data, "Log", "maxSkipDuration", is_game_specific);
+    logSeparate.setTomlValue(data, "Log", "separate", is_game_specific);
+    logSizeLimit.setTomlValue(data, "Log", "sizeLimit", is_game_specific);
+    logSkipDuplicate.setTomlValue(data, "Log", "skipDuplicate", is_game_specific);
+    logSync.setTomlValue(data, "Log", "sync", is_game_specific);
+#ifdef _WIN32
+    logType.setTomlValue(data, "Log", "type", is_game_specific);
+#endif
 
     cursorState.setTomlValue(data, "Input", "cursorState", is_game_specific);
     cursorHideTimeout.setTomlValue(data, "Input", "cursorHideTimeout", is_game_specific);
@@ -1115,7 +1170,7 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
     windowHeight.setTomlValue(data, "GPU", "screenHeight", is_game_specific);
     isNullGpu.setTomlValue(data, "GPU", "nullGpu", is_game_specific);
     shouldCopyGPUBuffers.setTomlValue(data, "GPU", "copyGPUBuffers", is_game_specific);
-    readbacksEnabled.setTomlValue(data, "GPU", "readbacks", is_game_specific);
+    readbacksMode.setTomlValue(data, "GPU", "readbacksMode", is_game_specific);
     readbackLinearImagesEnabled.setTomlValue(data, "GPU", "readbackLinearImages", is_game_specific);
     shouldDumpShaders.setTomlValue(data, "GPU", "dumpShaders", is_game_specific);
     vblankFrequency.setTomlValue(data, "GPU", "vblankFrequency", is_game_specific);
@@ -1142,9 +1197,6 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
 
     isDebugDump.setTomlValue(data, "Debug", "DebugDump", is_game_specific);
     isShaderDebug.setTomlValue(data, "Debug", "CollectShader", is_game_specific);
-    isSeparateLogFilesEnabled.setTomlValue(data, "Debug", "isSeparateLogFilesEnabled",
-                                           is_game_specific);
-    logEnabled.setTomlValue(data, "Debug", "logEnabled", is_game_specific);
 
     m_language.setTomlValue(data, "Settings", "consoleLanguage", is_game_specific);
 
@@ -1181,6 +1233,7 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
         // Non game-specific entries
         data["General"]["enableDiscordRPC"] = enableDiscordRPC;
         data["General"]["sysModulesPath"] = string{fmt::UTF(sys_modules_path.u8string()).data};
+        data["General"]["fontsPath"] = string{fmt::UTF(fonts_path.u8string()).data};
         data["GUI"]["installDirs"] = install_dirs;
         data["GUI"]["installDirsEnabled"] = install_dirs_enabled;
         data["GUI"]["saveDataPath"] = string{fmt::UTF(save_data_path.u8string()).data};
@@ -1197,7 +1250,6 @@ void save(const std::filesystem::path& path, bool is_game_specific) {
         data["GPU"]["internalScreenWidth"] = internalScreenWidth.base_value;
         data["GPU"]["internalScreenHeight"] = internalScreenHeight.base_value;
         data["GPU"]["patchShaders"] = shouldPatchShaders.base_value;
-        data["Debug"]["FPSColor"] = isFpsColor.base_value;
         data["Debug"]["showFpsCounter"] = showFpsCounter.base_value;
     }
 
@@ -1214,7 +1266,7 @@ void setDefaultValues(bool is_game_specific) {
     // Entries with game-specific settings that are in the game-specific setings GUI but not in
     // the global settings GUI
     if (is_game_specific) {
-        readbacksEnabled.set(false, is_game_specific);
+        readbacksMode.set(GpuReadbacksMode::Disabled, is_game_specific);
         readbackLinearImagesEnabled.set(false, is_game_specific);
         isNeo.set(false, is_game_specific);
         isDevKit.set(false, is_game_specific);
@@ -1229,11 +1281,22 @@ void setDefaultValues(bool is_game_specific) {
     volumeSlider.set(100, is_game_specific);
     isTrophyPopupDisabled.set(false, is_game_specific);
     trophyNotificationDuration.set(6.0, is_game_specific);
-    logFilter.set("", is_game_specific);
-    logType.set("sync", is_game_specific);
     userName.set("shadPS4", is_game_specific);
     isShowSplash.set(false, is_game_specific);
     isSideTrophy.set("right", is_game_specific);
+
+    // GS - Log
+    logAppend.set(false, is_game_specific);
+    logEnable.set(true, is_game_specific);
+    logFilter.set("", is_game_specific);
+    logMaxSkipDuration.set(5'000, is_game_specific);
+    logSeparate.set(false, is_game_specific);
+    logSkipDuplicate.set(true, is_game_specific);
+    logSync.set(true, is_game_specific);
+    logSizeLimit.set(100_MB, is_game_specific);
+#ifdef _WIN32
+    logType.set("wincolor", is_game_specific);
+#endif
 
     // GS - Input
     cursorState.set(HideCursorState::Idle, is_game_specific);
@@ -1276,8 +1339,6 @@ void setDefaultValues(bool is_game_specific) {
     // GS - Debug
     isDebugDump.set(false, is_game_specific);
     isShaderDebug.set(false, is_game_specific);
-    isSeparateLogFilesEnabled.set(false, is_game_specific);
-    logEnabled.set(true, is_game_specific);
 
     // GS - Settings
     m_language.set(1, is_game_specific);
@@ -1306,7 +1367,6 @@ void setDefaultValues(bool is_game_specific) {
         internalScreenHeight.base_value = 720;
 
         // Debug
-        isFpsColor.base_value = true;
         showFpsCounter.base_value = false;
     }
 }
@@ -1314,16 +1374,6 @@ void setDefaultValues(bool is_game_specific) {
 constexpr std::string_view GetDefaultGlobalConfig() {
     return R"(# Anything put here will be loaded for all games,
 # alongside the game's config or default.ini depending on your preference.
-
-hotkey_renderdoc_capture = f12
-hotkey_fullscreen = f11
-hotkey_show_fps = f10
-hotkey_pause = f9
-hotkey_reload_inputs = f8
-hotkey_toggle_mouse_to_joystick = f7
-hotkey_toggle_mouse_to_gyro = f6
-hotkey_toggle_mouse_to_touchpad = delete
-hotkey_quit = lctrl, lshift, end
 )";
 }
 
@@ -1401,7 +1451,7 @@ analog_deadzone = rightjoystick, 2, 127
 override_controller_color = false, 0, 0, 255
 )";
 }
-std::filesystem::path GetFoolproofInputConfigFile(const string& game_id) {
+std::filesystem::path GetInputConfigFile(const string& game_id) {
     // Read configuration file of the game, and if it doesn't exist, generate it from default
     // If that doesn't exist either, generate that from getDefaultConfig() and try again
     // If even the folder is missing, we start with that.
@@ -1438,6 +1488,52 @@ std::filesystem::path GetFoolproofInputConfigFile(const string& game_id) {
             if (global_config_stream) {
                 global_config_stream << global_config;
             }
+        }
+    }
+    if (game_id == "global") {
+        std::map<string, string> default_bindings_to_add = {
+            {"hotkey_capture_frame", "f12"},
+            {"hotkey_screenshot_with_overlays", "lalt, f12"},
+            {"hotkey_fullscreen", "f11"},
+            {"hotkey_show_fps", "f10"},
+            {"hotkey_pause", "f9"},
+            {"hotkey_reload_inputs", "f8"},
+            {"hotkey_toggle_mouse_to_joystick", "f7"},
+            {"hotkey_toggle_mouse_to_gyro", "f6"},
+            {"hotkey_toggle_mouse_to_touchpad", "delete"},
+            {"hotkey_quit", "lctrl, lshift, end"},
+            {"hotkey_volume_up", "kpplus"},
+            {"hotkey_volume_down", "kpminus"},
+        };
+        string legacy_capture_binding;
+        bool legacy_capture_binding_found = false;
+        std::ifstream global_in(config_file);
+        string line;
+        while (std::getline(global_in, line)) {
+            line.erase(std::remove_if(line.begin(), line.end(),
+                                      [](unsigned char c) { return std::isspace(c); }),
+                       line.end());
+            std::size_t equal_pos = line.find('=');
+            if (equal_pos == std::string::npos) {
+                continue;
+            }
+            std::string output_string = line.substr(0, equal_pos);
+            if (output_string == "hotkey_renderdoc_capture") {
+                legacy_capture_binding = line.substr(equal_pos + 1);
+                legacy_capture_binding_found = true;
+            }
+            default_bindings_to_add.erase(output_string);
+        }
+        global_in.close();
+        if (legacy_capture_binding_found) {
+            if (auto it = default_bindings_to_add.find("hotkey_capture_frame");
+                it != default_bindings_to_add.end()) {
+                it->second = legacy_capture_binding;
+            }
+        }
+        std::ofstream global_out(config_file, std::ios::app);
+        for (auto const& b : default_bindings_to_add) {
+            global_out << b.first << " = " << b.second << "\n";
         }
     }
 

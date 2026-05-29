@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include "common/types.h"
 #include "core/libraries/np/np_error.h"
 #include "core/libraries/np/np_types.h"
@@ -23,24 +25,46 @@ enum class OrbisNpState : u32 {
     SignedIn = 2,
 };
 
-using OrbisNpStateCallbackForNpToolkit = PS4_SYSV_ABI void (*)(s32 userId, OrbisNpState state,
-                                                               void* userdata);
-
-enum class OrbisNpGamePresenseStatus {
-    Offline = 0,
-    Online = 1,
-};
-
 enum class OrbisNpReachabilityState {
     Unavailable = 0,
     Available = 1,
     Reachable = 2,
 };
 
+using OrbisNpStateCallback =
+    PS4_SYSV_ABI void (*)(Libraries::UserService::OrbisUserServiceUserId userId, OrbisNpState state,
+                          OrbisNpId* npId, void* userdata);
+using OrbisNpStateCallbackA = PS4_SYSV_ABI void (*)(
+    Libraries::UserService::OrbisUserServiceUserId userId, OrbisNpState state, void* userdata);
+using OrbisNpStateCallbackForNpToolkit = PS4_SYSV_ABI void (*)(
+    Libraries::UserService::OrbisUserServiceUserId userId, OrbisNpState state, void* userdata);
+using OrbisNpReachabilityStateCallback =
+    PS4_SYSV_ABI void (*)(Libraries::UserService::OrbisUserServiceUserId userId,
+                          OrbisNpReachabilityState state, void* userdata);
+
+enum class OrbisNpGamePresenseStatus {
+    Offline = 0,
+    Online = 1,
+};
+
 struct OrbisNpCountryCode {
     char country_code[2];
     char end;
     char pad;
+};
+
+struct OrbisNpAgeRestriction {
+    OrbisNpCountryCode country_code;
+    s8 age;
+    u8 padding[3];
+};
+
+struct OrbisNpContentRestriction {
+    u64 size;
+    s8 default_age_restriction;
+    u8 padding[3];
+    s32 age_restriction_count;
+    const OrbisNpAgeRestriction* age_restriction;
 };
 
 struct OrbisNpDate {
@@ -79,6 +103,16 @@ struct OrbisNpCreateAsyncRequestParameter {
     s32 thread_priority;
     u8 padding[4];
 };
+
+void RegisterNpCallback(std::string key, std::function<void()> cb);
+void DeregisterNpCallback(std::string key);
+void NotifyNpStateFromUserServiceEvent(Libraries::UserService::OrbisUserServiceEventType event_type,
+                                       Libraries::UserService::OrbisUserServiceUserId user_id);
+
+s32 PS4_SYSV_ABI sceNpGetNpId(Libraries::UserService::OrbisUserServiceUserId user_id,
+                              OrbisNpId* np_id);
+s32 PS4_SYSV_ABI sceNpGetOnlineId(Libraries::UserService::OrbisUserServiceUserId user_id,
+                                  OrbisNpOnlineId* online_id);
 
 void RegisterLib(Core::Loader::SymbolsResolver* sym);
 } // namespace Libraries::Np::NpManager

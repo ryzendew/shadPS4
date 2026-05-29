@@ -9,10 +9,9 @@
 
 #include "common/support/avdec.h"
 
-namespace Libraries::Vdec2 {
+namespace Libraries::Videodec2 {
 
 std::vector<OrbisVideodec2AvcPictureInfo> gPictureInfos;
-std::vector<OrbisVideodec2LegacyAvcPictureInfo> gLegacyPictureInfos;
 
 static inline void CopyNV12Data(u8* dst, const AVFrame& src) {
     if (src.width == src.linesize[0]) {
@@ -132,46 +131,27 @@ s32 VdecDecoder::Decode(const OrbisVideodec2InputData& inputData,
         outputInfo.isErrorFrame = false;
         outputInfo.pictureCount = 1; // TODO: 2 pictures for interlaced video
 
-        // For proper compatibility with older games, check the inputted OutputInfo struct size.
+        // Only set framePitchInBytes if the game uses the newer struct version.
         if (outputInfo.thisSize == sizeof(OrbisVideodec2OutputInfo)) {
-            // framePitchInBytes only exists in the newer struct.
             outputInfo.framePitchInBytes = frame->width;
-            if (outputInfo.isValid) {
-                OrbisVideodec2AvcPictureInfo pictureInfo = {};
+        }
 
-                pictureInfo.thisSize = sizeof(OrbisVideodec2AvcPictureInfo);
-                pictureInfo.isValid = true;
+        if (outputInfo.isValid) {
+            OrbisVideodec2AvcPictureInfo pictureInfo = {};
 
-                pictureInfo.ptsData = inputData.ptsData;
-                pictureInfo.dtsData = inputData.dtsData;
-                pictureInfo.attachedData = inputData.attachedData;
+            pictureInfo.thisSize = sizeof(OrbisVideodec2AvcPictureInfo);
+            pictureInfo.isValid = true;
 
-                pictureInfo.frameCropLeftOffset = frame->crop_left;
-                pictureInfo.frameCropRightOffset = frame->crop_right;
-                pictureInfo.frameCropTopOffset = frame->crop_top;
-                pictureInfo.frameCropBottomOffset = frame->crop_bottom;
+            pictureInfo.ptsData = inputData.ptsData;
+            pictureInfo.dtsData = inputData.dtsData;
+            pictureInfo.attachedData = inputData.attachedData;
 
-                gPictureInfos.push_back(pictureInfo);
-            }
-        } else {
-            if (outputInfo.isValid) {
-                // If the game uses the older struct versions, we need to use it too.
-                OrbisVideodec2LegacyAvcPictureInfo pictureInfo = {};
+            pictureInfo.frameCropLeftOffset = frame->crop_left;
+            pictureInfo.frameCropRightOffset = frame->crop_right;
+            pictureInfo.frameCropTopOffset = frame->crop_top;
+            pictureInfo.frameCropBottomOffset = frame->crop_bottom;
 
-                pictureInfo.thisSize = sizeof(OrbisVideodec2LegacyAvcPictureInfo);
-                pictureInfo.isValid = true;
-
-                pictureInfo.ptsData = inputData.ptsData;
-                pictureInfo.dtsData = inputData.dtsData;
-                pictureInfo.attachedData = inputData.attachedData;
-
-                pictureInfo.frameCropLeftOffset = frame->crop_left;
-                pictureInfo.frameCropRightOffset = frame->crop_right;
-                pictureInfo.frameCropTopOffset = frame->crop_top;
-                pictureInfo.frameCropBottomOffset = frame->crop_bottom;
-
-                gLegacyPictureInfos.push_back(pictureInfo);
-            }
+            gPictureInfos.push_back(pictureInfo);
         }
     }
 
@@ -221,7 +201,7 @@ s32 VdecDecoder::Flush(OrbisVideodec2FrameBuffer& frameBuffer,
         outputInfo.codecType = 1; // FIXME: Hardcoded to AVC
         outputInfo.frameWidth = frame->width;
         outputInfo.frameHeight = frame->height;
-        outputInfo.framePitch = frame->linesize[0];
+        outputInfo.framePitch = frame->width;
         outputInfo.frameBufferSize = frameBuffer.frameBufferSize;
         outputInfo.frameBuffer = frameBuffer.frameBuffer;
 
@@ -231,7 +211,7 @@ s32 VdecDecoder::Flush(OrbisVideodec2FrameBuffer& frameBuffer,
 
         // Only set framePitchInBytes if the game uses the newer struct version.
         if (outputInfo.thisSize == sizeof(OrbisVideodec2OutputInfo)) {
-            outputInfo.framePitchInBytes = frame->linesize[0];
+            outputInfo.framePitchInBytes = frame->width;
         }
 
         // FIXME: Should we add picture info here too?
@@ -278,4 +258,4 @@ AVFrame* VdecDecoder::ConvertNV12Frame(AVFrame& frame) {
     return nv12_frame;
 }
 
-} // namespace Libraries::Vdec2
+} // namespace Libraries::Videodec2

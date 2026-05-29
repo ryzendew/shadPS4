@@ -4,12 +4,13 @@
 #include <mutex>
 #include "common/arch.h"
 #include "common/assert.h"
-#include "common/types.h"
 #include "core/libraries/kernel/threads/pthread.h"
 #include "core/tls.h"
 
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__FreeBSD__)
+#include <machine/sysarch.h>
 #elif defined(__APPLE__) && defined(ARCH_X86_64)
 #include <architecture/i386/table.h>
 #include <boost/icl/interval_set.hpp>
@@ -21,6 +22,8 @@
 #if defined(__linux__) && defined(ARCH_X86_64)
 #include <asm/prctl.h>
 #include <sys/prctl.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #endif
 
 namespace Core {
@@ -116,16 +119,16 @@ void SetTcbBase(void* image_address) {
     // Create an LDT entry for the TCB.
     ldt_entry ldt{};
     ldt.data = {
+        .limit00 = static_cast<u16>(ldt_block_size - 1),
         .base00 = static_cast<u16>(addr),
         .base16 = static_cast<u8>(addr >> 16),
-        .base24 = static_cast<u8>(addr >> 24),
-        .limit00 = static_cast<u16>(ldt_block_size - 1),
-        .limit16 = 0,
         .type = DESC_DATA_WRITE,
         .dpl = 3,     // User accessible
         .present = 1, // Segment present
+        .limit16 = 0,
         .stksz = DESC_DATA_32B,
         .granular = DESC_GRAN_BYTE,
+        .base24 = static_cast<u8>(addr >> 24),
     };
     int ret = i386_set_ldt(ldt_index, &ldt, 1);
     ASSERT_MSG(ret == ldt_index,
@@ -157,12 +160,17 @@ Tcb* GetTcbBase() {
 
 #elif defined(ARCH_X86_64)
 
-// Other POSIX x86_64
-
+// Linux x86_64
+#if defined(__FreeBSD__)
+void SetTcbBase(void* image_address) {
+    amd64_set_gsbase(image_address);
+}
+#else
 void SetTcbBase(void* image_address) {
     const int ret = syscall(SYS_arch_prctl, ARCH_SET_GS, (unsigned long)image_address);
     ASSERT_MSG(ret == 0, "Failed to set GS base: errno {}", errno);
 }
+#endif
 
 Tcb* GetTcbBase() {
     return Libraries::Kernel::g_curthread->tcb;
@@ -198,7 +206,7 @@ Tcb* GetTcbBase() {
 
 thread_local std::once_flag init_tls_flag;
 
-void EnsureThreadInitialized() {
+void InitializeTLS() {
     std::call_once(init_tls_flag, [] { SetTcbBase(Libraries::Kernel::g_curthread->tcb); });
 }
 

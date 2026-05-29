@@ -1,13 +1,13 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <ranges>
 
-#include "common/config.h"
 #include "common/hash.h"
 #include "common/io_file.h"
 #include "common/path_util.h"
 #include "core/debug_state.h"
+#include "core/emulator_settings.h"
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
 #include "shader_recompiler/info.h"
 #include "shader_recompiler/recompiler.h"
@@ -95,13 +95,15 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(Stage stage, LogicalS
         info.num_input_vgprs = program.settings.vgpr_comp_cnt;
         info.num_allocated_vgprs = program.NumVgprs();
         info.fp_denorm_mode32 = program.settings.fp_denorm_mode32;
+        info.fp_denorm_mode16_64 = program.settings.fp_denorm_mode64;
         info.fp_round_mode32 = program.settings.fp_round_mode32;
+        info.fp_round_mode16_64 = program.settings.fp_round_mode64;
     };
     info.Initialize(stage);
     switch (stage) {
     case Stage::Local: {
         BuildCommon(regs.ls_program);
-        Shader::TessellationDataConstantBuffer tess_constants;
+        Shader::TessellationDataConstantBuffer tess_constants{};
         const auto* hull_info = infos[u32(Shader::LogicalStage::TessellationControl)];
         hull_info->ReadTessConstantBuffer(tess_constants);
         info.ls_info.ls_stride = tess_constants.ls_stride;
@@ -120,6 +122,11 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(Stage stage, LogicalS
     case Stage::Export: {
         BuildCommon(regs.es_program);
         info.es_info.vertex_data_size = regs.vgt_esgs_ring_itemsize;
+        if (l_stage == LogicalStage::TessellationEval) {
+            info.es_vs_info.tess_type = regs.tess_config.type;
+            info.es_vs_info.tess_topology = regs.tess_config.topology;
+            info.es_vs_info.tess_partitioning = regs.tess_config.partitioning;
+        }
         break;
     }
     case Stage::Vertex: {
@@ -135,9 +142,9 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(Stage stage, LogicalS
             regs.primitive_type == AmdGpu::PrimitiveType::QuadList;
         info.vs_info.clip_disable = regs.IsClipDisabled();
         if (l_stage == LogicalStage::TessellationEval) {
-            info.vs_info.tess_type = regs.tess_config.type;
-            info.vs_info.tess_topology = regs.tess_config.topology;
-            info.vs_info.tess_partitioning = regs.tess_config.partitioning;
+            info.es_vs_info.tess_type = regs.tess_config.type;
+            info.es_vs_info.tess_topology = regs.tess_config.topology;
+            info.es_vs_info.tess_partitioning = regs.tess_config.partitioning;
         }
         break;
     }
@@ -148,7 +155,23 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(Stage stage, LogicalS
         gs_info.output_vertices = regs.vgt_gs_max_vert_out;
         gs_info.num_invocations =
             regs.vgt_gs_instance_cnt.IsEnabled() ? regs.vgt_gs_instance_cnt.count : 1;
-        gs_info.in_primitive = regs.primitive_type;
+        if (regs.stage_enable.raw == AmdGpu::ShaderStageEnable::LsHsEsGs) {
+            gs_info.in_primitive = [&]() {
+                switch (regs.tess_config.topology) {
+                case AmdGpu::TessellationTopology::Point:
+                    return AmdGpu::PrimitiveType::PointList;
+                case AmdGpu::TessellationTopology::Line:
+                    return AmdGpu::PrimitiveType::LineList;
+                case AmdGpu::TessellationTopology::TriangleCw:
+                case AmdGpu::TessellationTopology::TriangleCcw:
+                    return AmdGpu::PrimitiveType::TriangleList;
+                default:
+                    UNREACHABLE();
+                }
+            }();
+        } else {
+            gs_info.in_primitive = regs.primitive_type;
+        }
         for (u32 stream_id = 0; stream_id < Shader::GsMaxOutputStreams; ++stream_id) {
             gs_info.out_primitive[stream_id] =
                 regs.vgt_gs_out_prim_type.GetPrimitiveType(stream_id);
@@ -199,6 +222,10 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(Stage stage, LogicalS
         for (u32 i = 0; i < Shader::MaxColorBuffers; i++) {
             info.fs_info.color_buffers[i] = graphics_key.color_buffers[i];
         }
+        info.fs_info.clip_distance_emulation =
+            regs.vs_output_control.clip_distance_enable &&
+            !regs.stage_enable.IsStageEnabled(static_cast<u32>(Stage::Local)) &&
+            profile.needs_clip_distance_emulation;
         break;
     }
     case Stage::Compute: {
@@ -238,15 +265,29 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
         .support_int64 = instance.IsShaderInt64Supported(),
         .support_float16 = instance.IsShaderFloat16Supported(),
         .support_float64 = instance.IsShaderFloat64Supported(),
+        .supports_denorm_behavior_independence =
+            vk12_props.denormBehaviorIndependence != vk::ShaderFloatControlsIndependence::eNone,
+        .supports_rounding_mode_independence =
+            vk12_props.roundingModeIndependence != vk::ShaderFloatControlsIndependence::eNone,
+        .support_fp16_denorm_preserve = bool(vk12_props.shaderDenormPreserveFloat16),
+        .support_fp16_denorm_flush = bool(vk12_props.shaderDenormFlushToZeroFloat16),
+        .support_fp16_round_to_zero = bool(vk12_props.shaderRoundingModeRTZFloat16),
         .support_fp32_denorm_preserve = bool(vk12_props.shaderDenormPreserveFloat32),
         .support_fp32_denorm_flush = bool(vk12_props.shaderDenormFlushToZeroFloat32),
         .support_fp32_round_to_zero = bool(vk12_props.shaderRoundingModeRTZFloat32),
+        .support_fp64_denorm_preserve = bool(vk12_props.shaderDenormPreserveFloat64),
+        .support_fp64_denorm_flush = bool(vk12_props.shaderDenormFlushToZeroFloat64),
+        .support_fp64_round_to_zero = bool(vk12_props.shaderRoundingModeRTZFloat64),
+        .support_fp16_signed_zero_inf_nan_preserve =
+            bool(vk12_props.shaderSignedZeroInfNanPreserveFloat16),
+        .support_fp32_signed_zero_inf_nan_preserve =
+            bool(vk12_props.shaderSignedZeroInfNanPreserveFloat32),
+        .support_fp64_signed_zero_inf_nan_preserve =
+            bool(vk12_props.shaderSignedZeroInfNanPreserveFloat64),
         .support_legacy_vertex_attributes = instance_.IsLegacyVertexAttributesSupported(),
         .supports_image_load_store_lod = instance_.IsImageLoadStoreLodSupported(),
         .supports_native_cube_calc = instance_.IsAmdGcnShaderSupported(),
         .supports_trinary_minmax = instance_.IsAmdShaderTrinaryMinMaxSupported(),
-        // TODO: Emitted bounds checks cause problems with phi control flow; needs to be fixed.
-        .supports_robust_buffer_access = true, // instance_.IsRobustBufferAccess2Supported(),
         .supports_buffer_fp32_atomic_min_max =
             instance_.IsShaderAtomicFloatBuffer32MinMaxSupported(),
         .supports_image_fp32_atomic_min_max = instance_.IsShaderAtomicFloatImage32MinMaxSupported(),
@@ -266,6 +307,7 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
                               instance.GetDriverID() == vk::DriverId::eMoltenvk,
         .needs_buffer_offsets = instance.StorageMinAlignment() > 4,
         .needs_unorm_fixup = instance.GetDriverID() == vk::DriverId::eMoltenvk,
+        .needs_clip_distance_emulation = instance.GetDriverID() == vk::DriverId::eNvidiaProprietary,
     };
 
     WarmUp();
@@ -295,7 +337,7 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline() {
         RegisterPipelineData(graphics_key, pipeline_hash, sdata);
         ++num_new_pipelines;
 
-        if (Config::collectShadersForDebug()) {
+        if (EmulatorSettings.IsShaderCollect()) {
             for (auto stage = 0; stage < MaxShaderStages; ++stage) {
                 if (infos[stage]) {
                     auto& m = modules[stage];
@@ -324,7 +366,7 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
         RegisterPipelineData(compute_key, sdata);
         ++num_new_pipelines;
 
-        if (Config::collectShadersForDebug()) {
+        if (EmulatorSettings.IsShaderCollect()) {
             auto& m = modules[0];
             module_related_pipelines[m].emplace_back(compute_key);
         }
@@ -460,7 +502,13 @@ bool PipelineCache::RefreshGraphicsStages() {
 
     infos.fill(nullptr);
     modules.fill(nullptr);
-    bind_stage(Stage::Fragment, LogicalStage::Fragment);
+    const auto result = bind_stage(Stage::Fragment, LogicalStage::Fragment);
+    if (!result && regs.vs_output_control.clip_distance_enable &&
+        profile.needs_clip_distance_emulation) {
+        // TODO: need to implement a discard only fallback shader
+        LOG_WARNING(Render_Vulkan,
+                    "Clip distance emulation is ineffective due to absense of fragment shader");
+    }
 
     const auto* fs_info = infos[static_cast<u32>(LogicalStage::Fragment)];
     key.mrt_mask = fs_info ? fs_info->mrt_mask : 0u;
@@ -499,9 +547,38 @@ bool PipelineCache::RefreshGraphicsStages() {
             return false;
         }
         break;
-    default:
+    case AmdGpu::ShaderStageEnable::VgtStages::LsHsEsGs:
+        if (!instance.IsTessellationSupported() ||
+            (regs.tess_config.type == AmdGpu::TessellationType::Isoline &&
+             !instance.IsTessellationIsolinesSupported())) {
+            return false;
+        }
+        if (!instance.IsGeometryStageSupported()) {
+            LOG_WARNING(Render_Vulkan, "Geometry shader stage unsupported, skipping");
+            return false;
+        }
+        if (regs.vgt_gs_mode.onchip || regs.vgt_strmout_config.raw) {
+            LOG_WARNING(Render_Vulkan, "Geometry shader features unsupported, skipping");
+            return false;
+        }
+        if (!bind_stage(Stage::Hull, LogicalStage::TessellationControl)) {
+            return false;
+        }
+        if (!bind_stage(Stage::Export, LogicalStage::TessellationEval)) {
+            return false;
+        }
+        if (!bind_stage(Stage::Local, LogicalStage::Vertex)) {
+            return false;
+        }
+        if (!bind_stage(Stage::Geometry, LogicalStage::Geometry)) {
+            return false;
+        }
+        break;
+    case AmdGpu::ShaderStageEnable::VgtStages::Vs:
         bind_stage(Stage::Vertex, LogicalStage::Vertex);
         break;
+    default:
+        UNREACHABLE_MSG("unhandled stage_en: {}", (u32)regs.stage_enable.raw);
     }
 
     const auto* vs_info = infos[static_cast<u32>(Shader::LogicalStage::Vertex)];
@@ -543,7 +620,7 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::Runtim
     vk::ShaderModule module;
 
     auto patch = GetShaderPatch(info.pgm_hash, info.stage, perm_idx, "spv");
-    const bool is_patched = patch && Config::patchShaders();
+    const bool is_patched = patch && EmulatorSettings.IsPatchShaders();
     if (is_patched) {
         LOG_INFO(Loader, "Loaded patch for {} shader {:#x}", info.stage, info.pgm_hash);
         module = CompileSPV(*patch, instance.GetDevice());
@@ -555,7 +632,7 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::Runtim
 
     const auto name = GetShaderName(info.stage, info.pgm_hash, perm_idx);
     Vulkan::SetObjectName(instance.GetDevice(), module, name);
-    if (Config::collectShadersForDebug()) {
+    if (EmulatorSettings.IsShaderCollect()) {
         DebugState.CollectShader(name, info.l_stage, module, spv, code,
                                  patch ? *patch : std::span<const u32>{}, is_patched);
     }
@@ -648,7 +725,7 @@ std::string PipelineCache::GetShaderName(Shader::Stage stage, u64 hash,
 
 void PipelineCache::DumpShader(std::span<const u32> code, u64 hash, Shader::Stage stage,
                                size_t perm_idx, std::string_view ext) {
-    if (!Config::dumpShaders()) {
+    if (!EmulatorSettings.IsDumpShaders()) {
         return;
     }
 

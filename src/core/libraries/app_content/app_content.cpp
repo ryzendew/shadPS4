@@ -1,16 +1,18 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cmath>
 
 #include "app_content.h"
 #include "common/assert.h"
-#include "common/config.h"
+#include "common/elf_info.h"
 #include "common/logging/log.h"
 #include "common/singleton.h"
+#include "core/emulator_settings.h"
 #include "core/file_format/psf.h"
 #include "core/file_sys/fs.h"
 #include "core/libraries/app_content/app_content_error.h"
+#include "core/libraries/kernel/process.h"
 #include "core/libraries/libs.h"
 #include "core/libraries/system/systemservice.h"
 
@@ -29,8 +31,10 @@ static std::array<AddContInfo, ORBIS_APP_CONTENT_INFO_LIST_MAX_SIZE> addcont_inf
       0x00}},
 }};
 
+static s32 sdk_ver = 0;
 static s32 addcont_count = 0;
 static std::string title_id;
+static bool is_initialized = false;
 
 int PS4_SYSV_ABI _Z5dummyv() {
     LOG_ERROR(Lib_AppContent, "(STUBBED) called");
@@ -57,7 +61,7 @@ int PS4_SYSV_ABI sceAppContentAddcontMount(u32 service_label,
                                            OrbisAppContentMountPoint* mount_point) {
     LOG_INFO(Lib_AppContent, "called");
 
-    const auto& addon_path = Config::getAddonInstallDir() / title_id;
+    const auto& addon_path = EmulatorSettings.GetAddonInstallDir() / title_id;
     auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
 
     // Determine which loaded additional content this entitlement label is for.
@@ -279,10 +283,16 @@ int PS4_SYSV_ABI sceAppContentGetRegion() {
 
 int PS4_SYSV_ABI sceAppContentInitialize(const OrbisAppContentInitParam* initParam,
                                          OrbisAppContentBootParam* bootParam) {
-    LOG_ERROR(Lib_AppContent, "(DUMMY) called");
+    if (sdk_ver >= Common::ElfInfo::FW_150 && is_initialized) {
+        LOG_ERROR(Lib_AppContent, "Already initialized");
+        return ORBIS_APP_CONTENT_ERROR_BUSY;
+    }
+
+    LOG_WARNING(Lib_AppContent, "(DUMMY) called");
+    is_initialized = true;
     auto* param_sfo = Common::Singleton<PSF>::Instance();
 
-    const auto addons_dir = Config::getAddonInstallDir();
+    const auto addons_dir = EmulatorSettings.GetAddonInstallDir();
     if (const auto value = param_sfo->GetString("TITLE_ID"); value.has_value()) {
         title_id = *value;
     } else {
@@ -345,7 +355,7 @@ int PS4_SYSV_ABI sceAppContentInitialize(const OrbisAppContentInitParam* initPar
     if (addcont_count > 0) {
         SystemService::OrbisSystemServiceEvent event{};
         event.event_type = SystemService::OrbisSystemServiceEventType::EntitlementUpdate;
-        event.service_entitlement_update.user_id = 0;
+        event.service_entitlement_update.userId = 0;
         event.service_entitlement_update.np_service_label = 0;
         SystemService::PushSystemServiceEvent(event);
     }
@@ -402,6 +412,7 @@ int PS4_SYSV_ABI sceAppContentTemporaryDataMount2(OrbisAppContentTemporaryDataOp
     }
     static constexpr std::string_view TmpMount = "/temp0";
     TmpMount.copy(mountPoint->data, TmpMount.size());
+    mountPoint->data[TmpMount.size()] = '\0';
     LOG_INFO(Lib_AppContent, "sceAppContentTemporaryDataMount2: option = {}, mountPoint = {}",
              option, mountPoint->data);
     return ORBIS_OK;
@@ -448,6 +459,9 @@ int PS4_SYSV_ABI sceAppContentGetDownloadedStoreCountry() {
 }
 
 void RegisterLib(Core::Loader::SymbolsResolver* sym) {
+    ASSERT_MSG(Libraries::Kernel::sceKernelGetCompiledSdkVersion(&sdk_ver) == 0,
+               "Failed to get SDK version");
+
     LIB_FUNCTION("AS45QoYHjc4", "libSceAppContent", 1, "libSceAppContentUtil", _Z5dummyv);
     LIB_FUNCTION("ZiATpP9gEkA", "libSceAppContent", 1, "libSceAppContentUtil",
                  sceAppContentAddcontDelete);

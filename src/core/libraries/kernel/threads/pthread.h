@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -23,6 +23,18 @@ class SymbolsResolver;
 }
 
 namespace Libraries::Kernel {
+
+constexpr int PthreadInheritSched = 4;
+
+constexpr int ORBIS_KERNEL_PRIO_FIFO_DEFAULT = 700;
+constexpr int ORBIS_KERNEL_PRIO_FIFO_LOWEST = 256;
+constexpr int ORBIS_KERNEL_PRIO_FIFO_HIGHEST = 767;
+constexpr int ORBIS_KERNEL_PRIO_OTHER_DEFAULT = 900;
+constexpr int ORBIS_KERNEL_PRIO_OTHER_LOWEST = 768;
+constexpr int ORBIS_KERNEL_PRIO_OTHER_HIGHEST = 959;
+constexpr int ORBIS_KERNEL_PRIO_RR_DEFAULT = 700;
+constexpr int ORBIS_KERNEL_PRIO_RR_LOWEST = 256;
+constexpr int ORBIS_KERNEL_PRIO_RR_HIGHEST = 767;
 
 struct Pthread;
 
@@ -144,6 +156,7 @@ struct PthreadCleanup {
 };
 
 enum class PthreadAttrFlags : u32 {
+    ScopeProcess = 0,
     Detached = 1,
     ScopeSystem = 2,
     InheritSched = 4,
@@ -153,7 +166,7 @@ enum class PthreadAttrFlags : u32 {
 DECLARE_ENUM_FLAG_OPERATORS(PthreadAttrFlags)
 
 enum class SchedPolicy : u32 {
-    Fifo = 0,
+    Fifo = 1,
     Other = 2,
     RoundRobin = 3,
 };
@@ -184,6 +197,7 @@ static constexpr u32 ThrGuardDefault = ThrPageSize;
 
 struct PthreadRwlockAttr {
     int pshared;
+    int type;
 };
 using PthreadRwlockAttrT = PthreadRwlockAttr*;
 
@@ -206,8 +220,8 @@ struct PthreadSpecificElem {
 using PthreadKeyDestructor = void PS4_SYSV_ABI (*)(const void*);
 
 struct PthreadKey {
-    int allocated;
-    int seqno;
+    std::atomic<int> allocated;
+    std::atomic<int> seqno;
     PthreadKeyDestructor destructor;
 };
 using PthreadKeyT = s32;

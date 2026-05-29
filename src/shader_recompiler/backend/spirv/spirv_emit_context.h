@@ -293,11 +293,11 @@ public:
         const VectorIds* data_types;
         Id id;
         Id sampled_type;
-        Id pointer_type;
         Id image_type;
         AmdGpu::ImageType view_type;
         bool is_integer = false;
         bool is_storage = false;
+        MipStorageFallbackMode mip_fallback_mode{};
     };
 
     enum class PointerType : u32 {
@@ -327,7 +327,6 @@ public:
         u32 binding;
         BufferType buffer_type;
         std::array<Id, u32(PointerSize::NumClass)> offsets;
-        std::array<Id, u32(PointerSize::NumClass)> sizes;
         std::array<BufferSpv, u32(PointerType::NumAlias)> aliases;
 
         template <class Self>
@@ -338,11 +337,6 @@ public:
         template <class Self>
         auto& Offset(this Self& self, PointerSize size) {
             return self.offsets[u32(size)];
-        }
-
-        template <class Self>
-        auto& Size(this Self& self, PointerSize size) {
-            return self.sizes[u32(size)];
         }
     };
 

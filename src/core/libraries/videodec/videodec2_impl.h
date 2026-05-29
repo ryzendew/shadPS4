@@ -13,10 +13,9 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-namespace Libraries::Vdec2 {
+namespace Libraries::Videodec2 {
 
 extern std::vector<OrbisVideodec2AvcPictureInfo> gPictureInfos;
-extern std::vector<OrbisVideodec2LegacyAvcPictureInfo> gLegacyPictureInfos;
 
 class VdecDecoder {
 public:
@@ -37,4 +36,4 @@ private:
     SwsContext* mSwsContext = nullptr;
 };
 
-} // namespace Libraries::Vdec2
+} // namespace Libraries::Videodec2

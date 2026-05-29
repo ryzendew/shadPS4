@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+# SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 # Version 3.24 needed for FetchContent OVERRIDE_FIND_PACKAGE
@@ -19,6 +19,8 @@ endif()
 
 project(shadPS4 CXX C ASM ${ADDITIONAL_LANGUAGES})
 
+include(FetchContent)
+
 # Forcing PIE makes sure that the base address is high enough so that it doesn't clash with the PS4 memory.
 if(UNIX AND NOT APPLE)
     set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
@@ -33,6 +35,7 @@ endif()
 
 option(ENABLE_DISCORD_RPC "Enable the Discord RPC integration" ON)
 option(ENABLE_UPDATER "Enables the options to updater" ON)
+option(ENABLE_TESTS "Build unit tests (requires GTest)" OFF)
 
 # First, determine whether to use CMAKE_OSX_ARCHITECTURES or CMAKE_SYSTEM_PROCESSOR.
 if (APPLE AND CMAKE_OSX_ARCHITECTURES)
@@ -202,8 +205,8 @@ execute_process(
 
 # Set Version
 set(EMULATOR_VERSION_MAJOR "0")
-set(EMULATOR_VERSION_MINOR "12")
-set(EMULATOR_VERSION_PATCH "6")
+set(EMULATOR_VERSION_MINOR "15")
+set(EMULATOR_VERSION_PATCH "1")
 
 set_source_files_properties(src/shadps4.rc PROPERTIES COMPILE_DEFINITIONS "EMULATOR_VERSION_MAJOR=${EMULATOR_VERSION_MAJOR};EMULATOR_VERSION_MINOR=${EMULATOR_VERSION_MINOR};EMULATOR_VERSION_PATCH=${EMULATOR_VERSION_PATCH}")
 
@@ -221,17 +224,19 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(Boost 1.84.0 CONFIG)
+find_package(CLI11 2.6.1 CONFIG)
 find_package(FFmpeg 5.1.2 MODULE)
-find_package(fmt 10.2.0 CONFIG)
+find_package(fmt 12.0.0 CONFIG)
 find_package(glslang 15 CONFIG)
 find_package(half 1.12.0 MODULE)
 find_package(magic_enum 0.9.7 CONFIG)
+find_package(miniz 3.1 CONFIG)
+find_package(nlohmann_json 3.12 CONFIG)
 find_package(PNG 1.6 MODULE)
+find_package(OpenAL CONFIG)
+find_package(LibreSSL 4.3.1 MODULE)
 find_package(RenderDoc 1.6.0 MODULE)
-find_package(SDL3_mixer 2.8.1 CONFIG)
-if (SDL3_mixer_FOUND)
-    find_package(SDL3 3.1.2 CONFIG)
-endif()
+find_package(SDL3 3.1.2 CONFIG)
 find_package(stb MODULE)
 find_package(toml11 4.2.0 CONFIG)
 find_package(tsl-robin-map 1.3.0 CONFIG)
@@ -240,7 +245,7 @@ find_package(VulkanMemoryAllocator 3.1.0 CONFIG)
 find_package(xbyak 7.07 CONFIG)
 find_package(xxHash 0.8.2 MODULE)
 find_package(ZLIB 1.3 MODULE)
-find_package(Zydis 5.0.0 CONFIG)
+find_package(Zydis 5.0.0 MODULE)
 find_package(pugixml 1.14 CONFIG)
 if (APPLE)
     find_package(date 3.0.1 CONFIG)
@@ -262,6 +267,8 @@ include_directories(src)
 
 set(AJM_LIB src/core/libraries/ajm/ajm.cpp
             src/core/libraries/ajm/ajm.h
+            src/core/libraries/ajm/ajm_aac.cpp
+            src/core/libraries/ajm/ajm_aac.h
             src/core/libraries/ajm/ajm_at9.cpp
             src/core/libraries/ajm/ajm_at9.h
             src/core/libraries/ajm/ajm_batch.cpp
@@ -279,17 +286,25 @@ set(AJM_LIB src/core/libraries/ajm/ajm.cpp
 
 set(AUDIO_LIB src/core/libraries/audio/audioin.cpp
               src/core/libraries/audio/audioin.h
-              src/core/libraries/audio/sdl_in.h
-              src/core/libraries/audio/sdl_in.cpp
+              src/core/libraries/audio/audioin_backend.h
+              src/core/libraries/audio/audioin_error.h
+              src/core/libraries/audio/sdl_audio_in.cpp
               src/core/libraries/voice/voice.cpp
               src/core/libraries/voice/voice.h
               src/core/libraries/audio/audioout.cpp
               src/core/libraries/audio/audioout.h
               src/core/libraries/audio/audioout_backend.h
               src/core/libraries/audio/audioout_error.h
-              src/core/libraries/audio/sdl_audio.cpp
+              src/core/libraries/audio/sdl_audio_out.cpp
+              src/core/libraries/audio/openal_audio_out.cpp
+              src/core/libraries/audio/openal_manager.h
               src/core/libraries/ngs2/ngs2.cpp
               src/core/libraries/ngs2/ngs2.h
+              src/core/libraries/audio3d/audio3d.cpp
+              src/core/libraries/audio3d/audio3d_openal.cpp
+              src/core/libraries/audio3d/audio3d_openal.h
+              src/core/libraries/audio3d/audio3d.h
+              src/core/libraries/audio3d/audio3d_error.h
 )
 
 set(GNM_LIB src/core/libraries/gnmdriver/gnmdriver.cpp
@@ -298,7 +313,10 @@ set(GNM_LIB src/core/libraries/gnmdriver/gnmdriver.cpp
             src/core/libraries/gnmdriver/gnm_error.h
 )
 
-set(KERNEL_LIB src/core/libraries/kernel/sync/mutex.cpp
+set(KERNEL_LIB src/core/libraries/kernel/coredump/coredump.cpp
+               src/core/libraries/kernel/coredump/coredump.h
+               src/core/libraries/kernel/coredump/coredump_error.h
+               src/core/libraries/kernel/sync/mutex.cpp
                src/core/libraries/kernel/sync/mutex.h
                src/core/libraries/kernel/sync/semaphore.h
                src/core/libraries/kernel/threads/condvar.cpp
@@ -315,6 +333,7 @@ set(KERNEL_LIB src/core/libraries/kernel/sync/mutex.cpp
                src/core/libraries/kernel/threads/sleepq.cpp
                src/core/libraries/kernel/threads/sleepq.h
                src/core/libraries/kernel/threads/stack.cpp
+               src/core/libraries/kernel/threads/stack.S
                src/core/libraries/kernel/threads/tcb.cpp
                src/core/libraries/kernel/threads/pthread.h
                src/core/libraries/kernel/threads/thread_state.cpp
@@ -340,6 +359,8 @@ set(KERNEL_LIB src/core/libraries/kernel/sync/mutex.cpp
                src/core/libraries/kernel/aio.cpp
                src/core/libraries/kernel/aio.h
 )
+
+set_source_files_properties(src/core/libraries/kernel/threads/stack.s PROPERTIES COMPILE_OPTIONS -Wno-unused-command-line-argument)
 
 set(NETWORK_LIBS src/core/libraries/network/http.cpp
                  src/core/libraries/network/http.h
@@ -407,9 +428,12 @@ set(SYSTEM_LIBS src/core/libraries/system/commondialog.cpp
                 src/core/libraries/save_data/dialog/savedatadialog.h
                 src/core/libraries/save_data/dialog/savedatadialog_ui.cpp
                 src/core/libraries/save_data/dialog/savedatadialog_ui.h
-                src/core/libraries/system/sysmodule.cpp
-                src/core/libraries/system/sysmodule.h
-                src/core/libraries/system/system_error.h
+                src/core/libraries/sysmodule/sysmodule.cpp
+                src/core/libraries/sysmodule/sysmodule.h
+                src/core/libraries/sysmodule/sysmodule_internal.cpp
+                src/core/libraries/sysmodule/sysmodule_internal.h
+                src/core/libraries/sysmodule/sysmodule_error.h
+                src/core/libraries/sysmodule/sysmodule_table.h
                 src/core/libraries/system/systemservice.cpp
                 src/core/libraries/system/systemservice.h
                 src/core/libraries/system/systemservice_error.h
@@ -422,6 +446,8 @@ set(SYSTEM_LIBS src/core/libraries/system/commondialog.cpp
                 src/core/libraries/rtc/rtc.cpp
                 src/core/libraries/rtc/rtc.h
                 src/core/libraries/rtc/rtc_error.h
+                src/core/libraries/rudp/rudp.cpp
+                src/core/libraries/rudp/rudp.h
                 src/core/libraries/disc_map/disc_map.cpp
                 src/core/libraries/disc_map/disc_map.h
                 src/core/libraries/disc_map/disc_map_codes.h
@@ -469,7 +495,12 @@ set(SYSTEM_LIBS src/core/libraries/system/commondialog.cpp
                 src/core/libraries/font/fontft.cpp
                 src/core/libraries/font/fontft.h
                 src/core/libraries/font/font_error.h
-
+                src/core/libraries/content_export/content_export.cpp
+                src/core/libraries/content_export/content_export.h
+                src/core/libraries/content_export/content_export_error.h
+                src/core/libraries/video_recording/video_recording.cpp
+                src/core/libraries/video_recording/video_recording.h
+                src/core/libraries/video_recording/video_recording_error.h
 )
 
 set(VIDEOOUT_LIB src/core/libraries/videoout/buffer.h
@@ -490,18 +521,24 @@ set(HLE_LIBC_INTERNAL_LIB src/core/libraries/libc_internal/libc_internal.cpp
                  src/core/libraries/libc_internal/libc_internal_str.h
                  src/core/libraries/libc_internal/libc_internal_math.cpp
                  src/core/libraries/libc_internal/libc_internal_math.h
+                 src/core/libraries/libc_internal/libc_internal_threads.cpp
+                 src/core/libraries/libc_internal/libc_internal_threads.h
                  src/core/libraries/libc_internal/printf.h
 )
 
 set(IME_LIB src/core/libraries/ime/error_dialog.cpp
             src/core/libraries/ime/error_dialog.h
             src/core/libraries/ime/ime_common.h
+            src/core/libraries/ime/ime_kb_layout.cpp
+            src/core/libraries/ime/ime_kb_layout.h
             src/core/libraries/ime/ime_dialog_ui.cpp
             src/core/libraries/ime/ime_dialog_ui.h
             src/core/libraries/ime/ime_dialog.cpp
             src/core/libraries/ime/ime_dialog.h
             src/core/libraries/ime/ime_ui.cpp
             src/core/libraries/ime/ime_ui.h
+            src/core/libraries/ime/ime_ui_shared.cpp
+            src/core/libraries/ime/ime_ui_shared.h
             src/core/libraries/ime/ime.cpp
             src/core/libraries/ime/ime.h
             src/core/libraries/ime/ime_error.h
@@ -520,6 +557,9 @@ set(SYSTEM_GESTURE_LIB
 set(PNG_LIB src/core/libraries/libpng/pngdec.cpp
             src/core/libraries/libpng/pngdec.h
             src/core/libraries/libpng/pngdec_error.h
+            src/core/libraries/libpng/pngenc.cpp
+            src/core/libraries/libpng/pngenc.h
+            src/core/libraries/libpng/pngenc_error.h
 )
 
 set(JPEG_LIB src/core/libraries/jpeg/jpeg_error.h
@@ -577,22 +617,38 @@ set(NP_LIBS src/core/libraries/np/np_error.h
             src/core/libraries/np/np_commerce.h
             src/core/libraries/np/np_manager.cpp
             src/core/libraries/np/np_manager.h
-            src/core/libraries/np/np_score.cpp
-            src/core/libraries/np/np_score.h
+            src/core/libraries/np/np_matching2.cpp
+            src/core/libraries/np/np_matching2.h
             src/core/libraries/np/np_trophy.cpp
             src/core/libraries/np/np_trophy.h
+            src/core/libraries/np/np_tus.cpp
+            src/core/libraries/np/np_tus.h
             src/core/libraries/np/trophy_ui.cpp
             src/core/libraries/np/trophy_ui.h
-            src/core/libraries/np/np_web_api.cpp
-            src/core/libraries/np/np_web_api.h
+            src/core/libraries/np/np_web_api2.cpp
+            src/core/libraries/np/np_web_api2.h
             src/core/libraries/np/np_party.cpp
             src/core/libraries/np/np_party.h
             src/core/libraries/np/np_auth.cpp
             src/core/libraries/np/np_auth.h
-            src/core/libraries/np/np_profile_dialog.cpp
-            src/core/libraries/np/np_profile_dialog.h
+            src/core/libraries/np/np_profile_dialog/np_profile_dialog.cpp
+            src/core/libraries/np/np_profile_dialog/np_profile_dialog.h
+            src/core/libraries/np/np_profile_dialog/np_profile_dialog_ui.cpp
+            src/core/libraries/np/np_profile_dialog/np_profile_dialog_ui.h
             src/core/libraries/np/np_sns_facebook_dialog.cpp
             src/core/libraries/np/np_sns_facebook_dialog.h
+            src/core/libraries/np/np_partner.cpp
+            src/core/libraries/np/np_partner.h
+            src/core/libraries/np/object_manager.h
+            src/core/libraries/np/np_handler.cpp
+            src/core/libraries/np/np_handler.h
+            src/core/libraries/np/np_score/np_score.cpp
+            src/core/libraries/np/np_score/np_score.h
+            src/core/libraries/np/np_score/np_score_ctx.h
+            src/core/libraries/np/np_web_api/np_web_api.cpp
+            src/core/libraries/np/np_web_api/np_web_api.h
+            src/core/libraries/np/np_web_api/np_web_api_internal.cpp
+            src/core/libraries/np/np_web_api/np_web_api_internal.h
 )
 
 set(ZLIB_LIB src/core/libraries/zlib/zlib.cpp
@@ -662,16 +718,11 @@ set(DEV_TOOLS src/core/devtools/layer.cpp
               src/core/devtools/widget/text_editor.h
 )
 
-set(COMMON src/common/logging/backend.cpp
-           src/common/logging/backend.h
-           src/common/logging/filter.cpp
-           src/common/logging/filter.h
+set(COMMON src/common/logging/classes.h
            src/common/logging/formatter.h
-           src/common/logging/log_entry.h
+           src/common/logging/log.cpp
            src/common/logging/log.h
-           src/common/logging/text_formatter.cpp
-           src/common/logging/text_formatter.h
-           src/common/logging/types.h
+           src/common/logging/thread_name_formatter.h
            src/common/aes.h
            src/common/alignment.h
            src/common/arch.h
@@ -690,6 +741,7 @@ set(COMMON src/common/logging/backend.cpp
            src/common/elf_info.h
            src/common/endian.h
            src/common/enum.h
+           src/common/incremental_id.h
            src/common/io_file.cpp
            src/common/io_file.h
            src/common/lru_cache.h
@@ -738,6 +790,8 @@ set(COMMON src/common/logging/backend.cpp
            src/common/memory_patcher.cpp
            ${CMAKE_CURRENT_BINARY_DIR}/src/common/scm_rev.cpp
            src/common/scm_rev.h
+           src/common/key_manager.cpp
+           src/common/key_manager.h
 )
 
 if (ENABLE_DISCORD_RPC)
@@ -781,6 +835,8 @@ set(CORE src/core/aerolib/stubs.cpp
          src/core/file_format/playgo_chunk.h
          src/core/file_format/trp.cpp
          src/core/file_format/trp.h
+         src/core/file_format/npbind.cpp
+         src/core/file_format/npbind.h
          src/core/file_sys/fs.cpp
          src/core/file_sys/fs.h
          src/core/ipc/ipc.cpp
@@ -836,6 +892,14 @@ set(CORE src/core/aerolib/stubs.cpp
          src/core/thread.h
          src/core/tls.cpp
          src/core/tls.h
+         src/core/emulator_state.cpp
+         src/core/emulator_state.h
+         src/core/emulator_settings.cpp
+         src/core/emulator_settings.h
+         src/core/user_manager.cpp
+         src/core/user_manager.h
+         src/core/user_settings.cpp
+         src/core/user_settings.h
 )
 
 if (ARCHITECTURE STREQUAL "x86_64")
@@ -904,6 +968,7 @@ set(SHADER_RECOMPILER src/shader_recompiler/profile.h
                       src/shader_recompiler/ir/passes/flatten_extended_userdata_pass.cpp
                       src/shader_recompiler/ir/passes/hull_shader_transform.cpp
                       src/shader_recompiler/ir/passes/identity_removal_pass.cpp
+                      src/shader_recompiler/ir/passes/inject_clip_distance_attributes.cpp
                       src/shader_recompiler/ir/passes/ir_passes.h
                       src/shader_recompiler/ir/passes/lower_buffer_format_to_raw.cpp
                       src/shader_recompiler/ir/passes/lower_fp64_to_fp32.cpp
@@ -1041,14 +1106,32 @@ set(IMGUI src/imgui/imgui_config.h
           src/imgui/imgui_layer.h
           src/imgui/imgui_std.h
           src/imgui/imgui_texture.h
+          src/imgui/imgui_translations.cpp
+          src/imgui/imgui_translations.h
+          src/imgui/notifications_layer.cpp
+          src/imgui/notifications_layer.h
           src/imgui/renderer/imgui_core.cpp
           src/imgui/renderer/imgui_core.h
           src/imgui/renderer/imgui_impl_sdl3.cpp
           src/imgui/renderer/imgui_impl_sdl3.h
           src/imgui/renderer/imgui_impl_vulkan.cpp
           src/imgui/renderer/imgui_impl_vulkan.h
+          src/imgui/renderer/font_data.cpp
+          src/imgui/renderer/font_data.h
+          src/imgui/renderer/font_stack.cpp
+          src/imgui/renderer/font_stack.h
           src/imgui/renderer/texture_manager.cpp
           src/imgui/renderer/texture_manager.h
+          src/imgui/big_picture/big_picture.cpp
+          src/imgui/big_picture/big_picture.h
+          src/imgui/big_picture/settings_dialog_imgui.cpp
+          src/imgui/big_picture/settings_dialog_imgui.h
+          src/imgui/big_picture/settings_dialog_layer.cpp
+          src/imgui/big_picture/settings_dialog_layer.h
+          src/imgui/big_picture/imgui_impl_sdl3_big_picture.cpp
+          src/imgui/big_picture/imgui_impl_sdl3_big_picture.h
+          src/imgui/big_picture/imgui_impl_sdlrenderer3.cpp
+          src/imgui/big_picture/imgui_impl_sdlrenderer3.h
 )
 
 set(INPUT src/input/controller.cpp
@@ -1064,6 +1147,8 @@ set(EMULATOR src/emulator.cpp
              src/sdl_window.h
              src/sdl_window.cpp
 )
+
+if(NOT ENABLE_TESTS)
 
 add_executable(shadps4
     ${AUDIO_CORE}
@@ -1083,9 +1168,17 @@ add_executable(shadps4
 
 create_target_directory_groups(shadps4)
 
-target_link_libraries(shadps4 PRIVATE magic_enum::magic_enum fmt::fmt toml11::toml11 tsl::robin_map xbyak::xbyak Tracy::TracyClient RenderDoc::API FFmpeg::ffmpeg Dear_ImGui gcn half::half ZLIB::ZLIB PNG::PNG)
-target_link_libraries(shadps4 PRIVATE Boost::headers GPUOpen::VulkanMemoryAllocator LibAtrac9 sirit Vulkan::Headers xxHash::xxhash Zydis::Zydis glslang::glslang SDL3::SDL3 SDL3_mixer::SDL3_mixer pugixml::pugixml)
-target_link_libraries(shadps4 PRIVATE stb::headers libusb::usb lfreist-hwinfo::hwinfo nlohmann_json::nlohmann_json miniz)
+target_link_libraries(shadps4 PRIVATE spdlog::spdlog)
+target_link_libraries(shadps4 PRIVATE magic_enum::magic_enum fmt::fmt toml11::toml11 tsl::robin_map xbyak::xbyak Tracy::TracyClient RenderDoc::API FFmpeg::ffmpeg Dear_ImGui ImGuiFileDialog gcn half::half ZLIB::ZLIB PNG::PNG minimp3)
+target_link_libraries(shadps4 PRIVATE Boost::headers GPUOpen::VulkanMemoryAllocator LibAtrac9 sirit Vulkan::Headers xxHash::xxhash Zydis::Zydis glslang::glslang SDL3::SDL3 pugixml::pugixml)
+target_link_libraries(shadps4 PRIVATE stb::headers lfreist-hwinfo::hwinfo nlohmann_json::nlohmann_json miniz::miniz fdk-aac CLI11::CLI11 OpenAL::OpenAL Cpp_Httplib)
+
+if (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
+    target_link_libraries(shadps4 PRIVATE "/usr/lib/libusb.so")
+    target_link_libraries(shadps4 PRIVATE "/usr/local/lib/libuuid.so")
+else()
+    target_link_libraries(shadps4 PRIVATE libusb::usb)
+endif()
 
 target_compile_definitions(shadps4 PRIVATE IMGUI_USER_CONFIG="imgui/imgui_config.h")
 target_compile_definitions(Dear_ImGui PRIVATE IMGUI_USER_CONFIG="${PROJECT_SOURCE_DIR}/src/imgui/imgui_config.h")
@@ -1130,6 +1223,8 @@ if (APPLE)
     endif()
 
     # Replacement for std::chrono::time_zone
+    target_link_libraries(shadps4 PRIVATE date::date-tz epoll-shim)
+elseif (${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
     target_link_libraries(shadps4 PRIVATE date::date-tz epoll-shim)
 endif()
 
@@ -1198,6 +1293,15 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CMakeRC.cmake")
 cmrc_add_resource_library(embedded-resources
         ALIAS res::embedded
         NAMESPACE res
+        src/images/shadps4.png
+        src/images/big_picture/folder.png
+        src/images/big_picture/settings.png
+        src/images/big_picture/experimental.png
+        src/images/big_picture/graphics.png
+        src/images/big_picture/controller.png
+        src/images/big_picture/trophy.png
+        src/images/big_picture/log.png
+        src/images/big_picture/profiles.png
 	src/images/trophy.wav
         src/images/bronze.png
         src/images/gold.png
@@ -1218,3 +1322,8 @@ endif()
 
 # Install rules
 install(TARGETS shadps4 BUNDLE DESTINATION .)
+
+else()
+    enable_testing()
+    add_subdirectory(tests)
+endif()

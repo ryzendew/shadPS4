@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: Copyright 2025 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2025-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
@@ -22,6 +22,12 @@ struct GameInstallDir {
 };
 
 enum HideCursorState : int { Never, Idle, Always };
+
+enum GpuReadbacksMode : int {
+    Disabled,
+    Relaxed,
+    Precise,
+};
 
 void load(const std::filesystem::path& path, bool is_game_specific = false);
 void save(const std::filesystem::path& path, bool is_game_specific = false);
@@ -63,8 +69,8 @@ bool nullGpu();
 void setNullGpu(bool enable, bool is_game_specific = false);
 bool copyGPUCmdBuffers();
 void setCopyGPUCmdBuffers(bool enable, bool is_game_specific = false);
-bool readbacks();
-void setReadbacks(bool enable, bool is_game_specific = false);
+int getReadbacksMode();
+void setReadbacksMode(int mode, bool is_game_specific = false);
 bool readbackLinearImages();
 void setReadbackLinearImages(bool enable, bool is_game_specific = false);
 bool directMemoryAccess();
@@ -99,10 +105,29 @@ bool isPipelineCacheArchived();
 void setRdocEnabled(bool enable, bool is_game_specific = false);
 void setPipelineCacheEnabled(bool enable, bool is_game_specific = false);
 void setPipelineCacheArchived(bool enable, bool is_game_specific = false);
-std::string getLogType();
-void setLogType(const std::string& type, bool is_game_specific = false);
+
+// Log
+bool isLogAppend();
+void setLogAppend(bool enable, bool is_game_specific = false);
+bool getLogEnable();
+void setLogEnable(bool enable, bool is_game_specific = false);
 std::string getLogFilter();
 void setLogFilter(const std::string& type, bool is_game_specific = false);
+u32 getLogMaxSkipDuration();
+void setLogMaxSkipDuration(u32 duration, bool is_game_specific = false);
+bool getLogSeparateLogFilesEnabled();
+void setLogSeparateLogFilesEnabled(bool enabled, bool is_game_specific = false);
+unsigned long long getLogSizeLimit();
+void setLogSizeLimit(unsigned long long size, bool is_game_specific = false);
+bool getLogSkipDuplicate();
+void setLogSkipDuplicate(bool enable, bool is_game_specific = false);
+bool isLogSync();
+void setLogSync(bool sync, bool is_game_specific = false);
+#ifdef _WIN32
+std::string getLogType();
+void setLogType(const std::string& type, bool is_game_specific = false);
+#endif
+
 double getTrophyNotificationDuration();
 void setTrophyNotificationDuration(double newTrophyNotificationDuration,
                                    bool is_game_specific = false);
@@ -114,8 +139,6 @@ void setPadSpkOutputDevice(std::string device, bool is_game_specific = false);
 std::string getMicDevice();
 void setCursorHideTimeout(int newcursorHideTimeout, bool is_game_specific = false);
 void setMicDevice(std::string device, bool is_game_specific = false);
-void setSeparateLogFilesEnabled(bool enabled, bool is_game_specific = false);
-bool getSeparateLogFilesEnabled();
 u32 GetLanguage();
 void setLanguage(u32 language, bool is_game_specific = false);
 void setUseSpecialPad(bool use);
@@ -125,7 +148,6 @@ int getSpecialPadClass();
 bool getPSNSignedIn();
 void setPSNSignedIn(bool sign, bool is_game_specific = false);
 bool patchShaders(); // no set
-bool fpsColor();     // no set
 bool getShowFpsCounter();
 void setShowFpsCounter(bool enable, bool is_game_specific = false);
 bool isNeoModeConsole();
@@ -154,8 +176,8 @@ void setConnectedToNetwork(bool enable, bool is_game_specific = false);
 void setUserName(const std::string& name, bool is_game_specific = false);
 std::filesystem::path getSysModulesPath();
 void setSysModulesPath(const std::filesystem::path& path);
-bool getLoadAutoPatches();
-void setLoadAutoPatches(bool enable);
+std::filesystem::path getFontsPath();
+void setFontsPath(const std::filesystem::path& path);
 
 enum UsbBackendType : int { Real, SkylandersPortal, InfinityBase, DimensionsToypad };
 int getUsbDeviceBackend();
@@ -186,6 +208,6 @@ std::filesystem::path getAddonInstallDir();
 void setDefaultValues(bool is_game_specific = false);
 
 constexpr std::string_view GetDefaultGlobalConfig();
-std::filesystem::path GetFoolproofInputConfigFile(const std::string& game_id = "");
+std::filesystem::path GetInputConfigFile(const std::string& game_id = "");
 
 }; // namespace Config

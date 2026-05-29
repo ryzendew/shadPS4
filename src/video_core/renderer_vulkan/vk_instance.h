@@ -149,7 +149,12 @@ public:
         return depth_range_unrestricted;
     }
 
-    /// Returns true when the extendedDynamicState3ColorWriteMask feature o
+    /// Returns true when VK_EXT_extended_dynamic_state3 is supported
+    bool IsExtendedDynamicState3Supported() const {
+        return dynamic_state_3;
+    }
+
+    /// Returns true when the extendedDynamicState3ColorWriteMask feature of
     /// VK_EXT_extended_dynamic_state3 is supported.
     bool IsDynamicColorWriteMaskSupported() const {
         return dynamic_state_3 && dynamic_state_3_features.extendedDynamicState3ColorWriteMask;
@@ -158,11 +163,6 @@ public:
     /// Returns true when VK_EXT_vertex_input_dynamic_state is supported.
     bool IsVertexInputDynamicState() const {
         return vertex_input_dynamic_state;
-    }
-
-    /// Returns true when the robustBufferAccess2 feature of VK_EXT_robustness2 is supported.
-    bool IsRobustBufferAccess2Supported() const {
-        return robustness2 && robustness2_features.robustBufferAccess2;
     }
 
     /// Returns true when the nullDescriptor feature of VK_EXT_robustness2 is supported.
@@ -231,6 +231,11 @@ public:
     /// Returns true if 64-bit integer atomic operations can be used on shared memory
     bool IsSharedInt64AtomicsSupported() const {
         return vk12_features.shaderSharedInt64Atomics;
+    }
+
+    /// Returns true if the subgroup size can be set to match guest subgroup size
+    bool IsSubgroupSize64Supported() const {
+        return vk13_features.subgroupSizeControl && vk13_props.maxSubgroupSize >= 64;
     }
 
     /// Returns true when VK_KHR_workgroup_memory_explicit_layout is supported.
@@ -416,6 +421,18 @@ public:
         return features.logicOp;
     }
 
+    /// Returns whether VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT is supported on compressed
+    /// images.
+    bool IsBlockTexelViewSupported() const {
+        return supports_block_texel_view;
+    }
+
+    /// Returns whether VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT is supported on 3D images
+    bool Is2dViewOf3dSupported() const {
+        return image_2d_view_of_3d && image_2d_view_of_3d_features.image2DViewOf3D &&
+               image_2d_view_of_3d_features.sampler2DViewOf3D;
+    }
+
     /// Returns whether the device can report memory usage.
     bool CanReportMemoryUsage() const {
         return supports_memory_budget;
@@ -442,6 +459,7 @@ private:
     /// Collects various information from the device.
     void CollectDeviceParameters();
     void CollectPhysicalMemoryInfo();
+    void CollectImageFormatInfo();
     void CollectToolingInfo() const;
 
     /// Gets the supported feature flags for a format.
@@ -455,15 +473,18 @@ private:
     vk::PhysicalDeviceMemoryProperties memory_properties;
     vk::PhysicalDeviceVulkan11Properties vk11_props;
     vk::PhysicalDeviceVulkan12Properties vk12_props;
+    vk::PhysicalDeviceVulkan13Properties vk13_props;
     vk::PhysicalDevicePushDescriptorPropertiesKHR push_descriptor_props;
     vk::PhysicalDeviceFeatures features;
     vk::PhysicalDeviceVulkan12Features vk12_features;
+    vk::PhysicalDeviceVulkan13Features vk13_features;
     vk::PhysicalDevicePortabilitySubsetFeaturesKHR portability_features;
     vk::PhysicalDeviceExtendedDynamicState3FeaturesEXT dynamic_state_3_features;
     vk::PhysicalDeviceRobustness2FeaturesEXT robustness2_features;
     vk::PhysicalDeviceShaderAtomicFloat2FeaturesEXT shader_atomic_float2_features;
     vk::PhysicalDeviceWorkgroupMemoryExplicitLayoutFeaturesKHR
         workgroup_memory_explicit_layout_features;
+    vk::PhysicalDeviceImage2DViewOf3DFeaturesEXT image_2d_view_of_3d_features;
     vk::DriverIdKHR driver_id;
     vk::UniqueDebugUtilsMessengerEXT debug_callback{};
     std::string vendor_name;
@@ -499,7 +520,9 @@ private:
     bool portability_subset{};
     bool maintenance_8{};
     bool attachment_feedback_loop{};
+    bool image_2d_view_of_3d{};
     bool supports_memory_budget{};
+    bool supports_block_texel_view{};
     u64 total_memory_budget{};
     std::vector<size_t> valid_heaps;
 };

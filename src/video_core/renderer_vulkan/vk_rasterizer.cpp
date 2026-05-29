@@ -1,8 +1,8 @@
-// SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
+// SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "common/config.h"
 #include "common/debug.h"
+#include "core/emulator_settings.h"
 #include "core/memory.h"
 #include "shader_recompiler/runtime_info.h"
 #include "video_core/amdgpu/liverpool.h"
@@ -38,7 +38,7 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_,
       texture_cache{instance, scheduler, liverpool_, buffer_cache, page_manager},
       liverpool{liverpool_}, memory{Core::Memory::Instance()},
       pipeline_cache{instance, scheduler, liverpool} {
-    if (!Config::nullGpu()) {
+    if (!EmulatorSettings.IsNullGPU()) {
         liverpool->BindRasterizer(this);
     }
     memory->SetRasterizer(this);
@@ -385,6 +385,7 @@ bool Rasterizer::BindResources(const Pipeline* pipeline) {
         return false;
     }
 
+    set_write_index = 0;
     set_writes.clear();
     buffer_barriers.clear();
     buffer_infos.clear();
@@ -399,6 +400,8 @@ bool Rasterizer::BindResources(const Pipeline* pipeline) {
         if (!stage) {
             continue;
         }
+        set_writes.resize(set_writes.size() + stage->buffers.size() + stage->images.size() +
+                          stage->samplers.size());
         stage->PushUd(binding, push_data);
         BindBuffers(*stage, binding, push_data);
         BindTextures(*stage, binding);
@@ -647,21 +650,27 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, Shader::Backend::Binding
             }
         }
 
-        set_writes.push_back({
-            .dstSet = VK_NULL_HANDLE,
-            .dstBinding = binding.unified++,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = is_storage ? vk::DescriptorType::eStorageBuffer
-                                         : vk::DescriptorType::eUniformBuffer,
-            .pBufferInfo = &buffer_infos.back(),
-        });
+        auto& set_write = set_writes[set_write_index++];
+        set_write.dstSet = VK_NULL_HANDLE;
+        set_write.dstBinding = binding.unified++;
+        set_write.dstArrayElement = 0;
+        set_write.descriptorCount = 1;
+        set_write.descriptorType =
+            is_storage ? vk::DescriptorType::eStorageBuffer : vk::DescriptorType::eUniformBuffer;
+        set_write.pBufferInfo = &buffer_infos.back();
         ++binding.buffer;
     }
 }
 
 void Rasterizer::BindTextures(const Shader::Info& stage, Shader::Backend::Bindings& binding) {
     image_bindings.clear();
+    const u32 first_image_idx = image_infos.size();
+    // For loading/storing to explicit mip levels, when no native instruction support, bind an array
+    // of descriptors consecutively, 1 for each mip level. The shader can index this with LOD
+    // operand.
+    // This array holds the size of each consecutive array with the number of bindings consumed.
+    // This is currently always 1 for anything other than mip fallback arrays.
+    boost::container::small_vector<u32, 8> image_descriptor_array_sizes;
 
     for (const auto& image_desc : stage.images) {
         const auto tsharp = image_desc.GetSharp(stage);
@@ -671,25 +680,43 @@ void Rasterizer::BindTextures(const Shader::Info& stage, Shader::Backend::Bindin
 
         if (tsharp.GetDataFmt() == AmdGpu::DataFormat::FormatInvalid) {
             image_bindings.emplace_back(std::piecewise_construct, std::tuple{}, std::tuple{});
+            image_descriptor_array_sizes.push_back(1);
             continue;
         }
 
-        auto& [image_id, desc] = image_bindings.emplace_back(std::piecewise_construct, std::tuple{},
-                                                             std::tuple{tsharp, image_desc});
-        image_id = texture_cache.FindImage(desc);
-        auto* image = &texture_cache.GetImage(image_id);
-        if (image->depth_id) {
-            // If this image has an associated depth image, it's a stencil attachment.
-            // Redirect the access to the actual depth-stencil buffer.
-            image_id = image->depth_id;
-            image = &texture_cache.GetImage(image_id);
+        const Shader::MipStorageFallbackMode mip_fallback_mode = image_desc.mip_fallback_mode;
+        const u32 num_bindings = image_desc.NumBindings(stage);
+
+        for (auto i = 0; i < num_bindings; i++) {
+            auto& [image_id, desc] = image_bindings.emplace_back(
+                std::piecewise_construct, std::tuple{}, std::tuple{tsharp, image_desc});
+
+            if (mip_fallback_mode == Shader::MipStorageFallbackMode::ConstantIndex) {
+                ASSERT(num_bindings == 1);
+                desc.view_info.range.base.level += image_desc.constant_mip_index;
+                desc.view_info.range.extent.levels = 1;
+            } else if (mip_fallback_mode == Shader::MipStorageFallbackMode::DynamicIndex) {
+                desc.view_info.range.base.level += i;
+                desc.view_info.range.extent.levels = 1;
+            }
+
+            image_id = texture_cache.FindImage(desc);
+            auto* image = &texture_cache.GetImage(image_id);
+            if (auto depth_image_id = texture_cache.GetAssociatedDepth(*image)) {
+                // If this image has an associated depth image, it's a stencil attachment.
+                // Redirect the access to the actual depth-stencil buffer.
+                image_id = depth_image_id;
+                image = &texture_cache.GetImage(image_id);
+            }
+            if (image->binding.is_bound) {
+                // The image is already bound. In case if it is about to be used as storage we
+                // need to force general layout on it.
+                image->binding.force_general |= image_desc.is_written;
+            }
+            image->binding.is_bound = 1u;
         }
-        if (image->binding.is_bound) {
-            // The image is already bound. In case if it is about to be used as storage we need
-            // to force general layout on it.
-            image->binding.force_general |= image_desc.is_written;
-        }
-        image->binding.is_bound = 1u;
+
+        image_descriptor_array_sizes.push_back(num_bindings);
     }
 
     // Second pass to re-bind images that were updated after binding
@@ -727,7 +754,8 @@ void Rasterizer::BindTextures(const Shader::Info& stage, Shader::Backend::Bindin
                               vk::AccessFlagBits2::eShaderRead |
                                   (image.info.props.is_depth
                                        ? vk::AccessFlagBits2::eDepthStencilAttachmentWrite
-                                       : vk::AccessFlagBits2::eColorAttachmentWrite),
+                                       : vk::AccessFlagBits2::eColorAttachmentWrite |
+                                             vk::AccessFlagBits2::eColorAttachmentRead),
                               {});
             } else {
                 if (is_storage) {
@@ -749,16 +777,25 @@ void Rasterizer::BindTextures(const Shader::Info& stage, Shader::Backend::Bindin
             image_infos.emplace_back(VK_NULL_HANDLE, *image_view.image_view,
                                      image.backing->state.layout);
         }
+    }
 
-        set_writes.push_back({
-            .dstSet = VK_NULL_HANDLE,
-            .dstBinding = binding.unified++,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType =
-                is_storage ? vk::DescriptorType::eStorageImage : vk::DescriptorType::eSampledImage,
-            .pImageInfo = &image_infos.back(),
-        });
+    u32 image_info_idx = first_image_idx;
+    u32 image_binding_idx = 0;
+    for (u32 array_size : image_descriptor_array_sizes) {
+        const auto& [_, desc] = image_bindings[image_binding_idx];
+        const bool is_storage = desc.type == VideoCore::TextureCache::BindingType::Storage;
+        auto& set_write = set_writes[set_write_index++];
+        set_write.dstSet = VK_NULL_HANDLE;
+        set_write.dstBinding = binding.unified;
+        set_write.dstArrayElement = 0;
+        set_write.descriptorCount = array_size;
+        set_write.descriptorType =
+            is_storage ? vk::DescriptorType::eStorageImage : vk::DescriptorType::eSampledImage;
+        set_write.pImageInfo = &image_infos[image_info_idx];
+
+        image_info_idx += array_size;
+        image_binding_idx += array_size;
+        binding.unified += array_size;
     }
 
     for (const auto& sampler : stage.samplers) {
@@ -771,14 +808,13 @@ void Rasterizer::BindTextures(const Shader::Info& stage, Shader::Backend::Bindin
         }
         const auto vk_sampler = texture_cache.GetSampler(ssharp, liverpool->regs.ta_bc_base);
         image_infos.emplace_back(vk_sampler, VK_NULL_HANDLE, vk::ImageLayout::eGeneral);
-        set_writes.push_back({
-            .dstSet = VK_NULL_HANDLE,
-            .dstBinding = binding.unified++,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = vk::DescriptorType::eSampler,
-            .pImageInfo = &image_infos.back(),
-        });
+        auto& set_write = set_writes[set_write_index++];
+        set_write.dstSet = VK_NULL_HANDLE;
+        set_write.dstBinding = binding.unified++;
+        set_write.dstArrayElement = 0;
+        set_write.descriptorCount = 1;
+        set_write.descriptorType = vk::DescriptorType::eSampler;
+        set_write.pImageInfo = &image_infos.back();
     }
 }
 
@@ -789,11 +825,12 @@ RenderState Rasterizer::BeginRendering(const GraphicsPipeline* pipeline) {
     RenderState state;
     state.width = instance.GetMaxFramebufferWidth();
     state.height = instance.GetMaxFramebufferHeight();
-    state.num_layers = std::numeric_limits<u32>::max();
+    state.num_layers = std::numeric_limits<u16>::max();
     state.num_color_attachments = std::bit_width(key.mrt_mask);
     for (auto cb = 0u; cb < state.num_color_attachments; ++cb) {
         auto& [image_id, desc] = cb_descs[cb];
         if (!image_id) {
+            state.color_attachments[cb] = {};
             continue;
         }
         auto* image = &texture_cache.GetImage(image_id);
@@ -829,15 +866,19 @@ RenderState Rasterizer::BeginRendering(const GraphicsPipeline* pipeline) {
         state.width = std::min<u32>(state.width, std::max(image->info.size.width >> mip, 1u));
         state.height = std::min<u32>(state.height, std::max(image->info.size.height >> mip, 1u));
         state.num_layers = std::min<u32>(state.num_layers, image_view.info.range.extent.layers);
-        state.color_attachments[cb] = {
-            .imageView = *image_view.image_view,
-            .imageLayout = image->backing->state.layout,
-            .loadOp = is_clear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eLoad,
-            .storeOp = vk::AttachmentStoreOp::eStore,
-            .clearValue =
-                is_clear ? LiverpoolToVK::ColorBufferClearValue(col_buf) : vk::ClearValue{},
-        };
+
+        const auto clear_value =
+            is_clear ? LiverpoolToVK::ColorBufferClearValue(col_buf) : vk::ClearValue{};
+        auto& attachment = state.color_attachments[cb];
+        attachment.image_view = *image_view.image_view;
+        attachment.image_layout = image->backing->state.layout;
+        attachment.clear_value = clear_value.color.uint32;
+        attachment.is_clear = is_clear;
+
         image->usage.render_target = 1u;
+    }
+    for (u32 cb = state.num_color_attachments; cb < state.color_attachments.size(); ++cb) {
+        state.color_attachments[cb] = {};
     }
 
     if (auto image_id = db_desc.first; image_id) {
@@ -854,9 +895,14 @@ RenderState Rasterizer::BeginRendering(const GraphicsPipeline* pipeline) {
         ASSERT(desc.view_info.range.extent.levels == 1 && !image.binding.needs_rebind);
 
         const bool has_stencil = image.info.props.has_stencil;
+        // Stencil writes can be enabled while depth writes are off.
+        const bool stencil_write =
+            has_stencil && regs.depth_control.stencil_enable && !desc.view_info.is_storage;
         const auto new_layout = desc.view_info.is_storage
                                     ? has_stencil ? vk::ImageLayout::eDepthStencilAttachmentOptimal
                                                   : vk::ImageLayout::eDepthAttachmentOptimal
+                                : stencil_write
+                                    ? vk::ImageLayout::eDepthReadOnlyStencilAttachmentOptimal
                                 : has_stencil ? vk::ImageLayout::eDepthStencilReadOnlyOptimal
                                               : vk::ImageLayout::eDepthReadOnlyOptimal;
         image.Transit(new_layout,
@@ -866,34 +912,30 @@ RenderState Rasterizer::BeginRendering(const GraphicsPipeline* pipeline) {
 
         state.width = std::min<u32>(state.width, image.info.size.width);
         state.height = std::min<u32>(state.height, image.info.size.height);
-        state.has_depth = regs.depth_buffer.DepthValid();
-        state.has_stencil = regs.depth_buffer.StencilValid();
         state.num_layers = std::min<u32>(state.num_layers, image_view.info.range.extent.layers);
-        if (state.has_depth) {
-            state.depth_attachment = {
-                .imageView = *image_view.image_view,
-                .imageLayout = image.backing->state.layout,
-                .loadOp =
-                    is_depth_clear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eLoad,
-                .storeOp = vk::AttachmentStoreOp::eStore,
-                .clearValue = vk::ClearValue{.depthStencil = {.depth = regs.depth_clear}},
-            };
+
+        auto& attachment = state.depth_stencil_attachment;
+        attachment.image_view = *image_view.image_view;
+        attachment.image_layout = image.backing->state.layout;
+        attachment.clear_value = {};
+
+        if (regs.depth_buffer.DepthValid()) {
+            attachment.clear_value[0] = is_depth_clear ? std::bit_cast<u32>(regs.depth_clear) : 0u;
+            attachment.has_depth = true;
+            attachment.depth_clear = is_depth_clear;
         }
-        if (state.has_stencil) {
-            state.stencil_attachment = {
-                .imageView = *image_view.image_view,
-                .imageLayout = image.backing->state.layout,
-                .loadOp =
-                    is_stencil_clear ? vk::AttachmentLoadOp::eClear : vk::AttachmentLoadOp::eLoad,
-                .storeOp = vk::AttachmentStoreOp::eStore,
-                .clearValue = vk::ClearValue{.depthStencil = {.stencil = regs.stencil_clear}},
-            };
+        if (regs.depth_buffer.StencilValid()) {
+            attachment.clear_value[1] = is_stencil_clear ? regs.stencil_clear : 0u;
+            attachment.has_stencil = true;
+            attachment.stencil_clear = is_stencil_clear;
         }
 
         image.usage.depth_target = true;
+    } else {
+        state.depth_stencil_attachment = {};
     }
 
-    if (state.num_layers == std::numeric_limits<u32>::max()) {
+    if (state.num_layers == std::numeric_limits<u16>::max()) {
         state.num_layers = 1;
     }
 
@@ -1013,6 +1055,10 @@ bool Rasterizer::ReadMemory(VAddr addr, u64 size) {
 bool Rasterizer::IsMapped(VAddr addr, u64 size) {
     if (size == 0) {
         // There is no memory, so not mapped.
+        return false;
+    }
+    if (static_cast<u64>(addr) > std::numeric_limits<u64>::max() - size) {
+        // Memory range wrapped the address space, cannot be mapped.
         return false;
     }
     const auto range = decltype(mapped_ranges)::interval_type::right_open(addr, addr + size);
@@ -1243,7 +1289,19 @@ void Rasterizer::UpdatePrimitiveState(const bool is_indexed) const {
     const auto& regs = liverpool->regs;
     auto& dynamic_state = scheduler.GetDynamicState();
 
-    const auto prim_restart = (regs.enable_primitive_restart & 1) != 0;
+    const auto is_list_topology = [](const AmdGpu::PrimitiveType type) {
+        const auto topology = LiverpoolToVK::PrimitiveType(type);
+        return topology == vk::PrimitiveTopology::ePointList ||
+               topology == vk::PrimitiveTopology::eLineList ||
+               topology == vk::PrimitiveTopology::eTriangleList ||
+               topology == vk::PrimitiveTopology::eLineListWithAdjacency ||
+               topology == vk::PrimitiveTopology::eTriangleListWithAdjacency ||
+               topology == vk::PrimitiveTopology::ePatchList;
+    };
+
+    const auto prim_restart =
+        (regs.enable_primitive_restart & 1) != 0 &&
+        (instance.IsListRestartSupported() || !is_list_topology(regs.primitive_type));
     ASSERT_MSG(!is_indexed || !prim_restart || regs.primitive_restart_index == 0xFFFF ||
                    regs.primitive_restart_index == 0xFFFFFFFF,
                "Primitive restart index other than -1 is not supported yet");
@@ -1274,8 +1332,8 @@ void Rasterizer::UpdateColorBlendingState(const GraphicsPipeline* pipeline) cons
 }
 
 void Rasterizer::ScopeMarkerBegin(const std::string_view& str, bool from_guest) {
-    if ((from_guest && !Config::getVkGuestMarkersEnabled()) ||
-        (!from_guest && !Config::getVkHostMarkersEnabled())) {
+    if ((from_guest && !EmulatorSettings.IsVkGuestMarkersEnabled()) ||
+        (!from_guest && !EmulatorSettings.IsVkHostMarkersEnabled())) {
         return;
     }
     const auto cmdbuf = scheduler.CommandBuffer();
@@ -1285,8 +1343,8 @@ void Rasterizer::ScopeMarkerBegin(const std::string_view& str, bool from_guest) 
 }
 
 void Rasterizer::ScopeMarkerEnd(bool from_guest) {
-    if ((from_guest && !Config::getVkGuestMarkersEnabled()) ||
-        (!from_guest && !Config::getVkHostMarkersEnabled())) {
+    if ((from_guest && !EmulatorSettings.IsVkGuestMarkersEnabled()) ||
+        (!from_guest && !EmulatorSettings.IsVkHostMarkersEnabled())) {
         return;
     }
     const auto cmdbuf = scheduler.CommandBuffer();
@@ -1294,8 +1352,8 @@ void Rasterizer::ScopeMarkerEnd(bool from_guest) {
 }
 
 void Rasterizer::ScopedMarkerInsert(const std::string_view& str, bool from_guest) {
-    if ((from_guest && !Config::getVkGuestMarkersEnabled()) ||
-        (!from_guest && !Config::getVkHostMarkersEnabled())) {
+    if ((from_guest && !EmulatorSettings.IsVkGuestMarkersEnabled()) ||
+        (!from_guest && !EmulatorSettings.IsVkHostMarkersEnabled())) {
         return;
     }
     const auto cmdbuf = scheduler.CommandBuffer();
@@ -1306,8 +1364,8 @@ void Rasterizer::ScopedMarkerInsert(const std::string_view& str, bool from_guest
 
 void Rasterizer::ScopedMarkerInsertColor(const std::string_view& str, const u32 color,
                                          bool from_guest) {
-    if ((from_guest && !Config::getVkGuestMarkersEnabled()) ||
-        (!from_guest && !Config::getVkHostMarkersEnabled())) {
+    if ((from_guest && !EmulatorSettings.IsVkGuestMarkersEnabled()) ||
+        (!from_guest && !EmulatorSettings.IsVkHostMarkersEnabled())) {
         return;
     }
     const auto cmdbuf = scheduler.CommandBuffer();

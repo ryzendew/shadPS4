@@ -427,8 +427,8 @@ U32 IREmitter::ReadConst(const Value& base, const U32& offset) {
     return Inst<U32>(Opcode::ReadConst, base, offset);
 }
 
-U32 IREmitter::ReadConstBuffer(const Value& handle, const U32& index) {
-    return Inst<U32>(Opcode::ReadConstBuffer, handle, index);
+U32 IREmitter::ReadConstBuffer(const Value& handle, const U32& index, BufferInstInfo info) {
+    return Inst<U32>(Opcode::ReadConstBuffer, Flags{info}, handle, index);
 }
 
 U8 IREmitter::LoadBufferU8(const Value& handle, const Value& address, BufferInstInfo info) {
@@ -625,6 +625,11 @@ Value IREmitter::BufferAtomicSwap(const Value& handle, const Value& address, con
 Value IREmitter::BufferAtomicCmpSwap(const Value& handle, const Value& address, const Value& vdata,
                                      const Value& cmp_value, BufferInstInfo info) {
     return Inst(Opcode::BufferAtomicCmpSwap32, Flags{info}, handle, address, vdata, cmp_value);
+}
+
+Value IREmitter::BufferAtomicFCmpSwap(const Value& handle, const Value& address, const Value& vdata,
+                                      const Value& cmp_value, BufferInstInfo info) {
+    return Inst(Opcode::BufferAtomicFCmpSwap32, Flags{info}, handle, address, vdata, cmp_value);
 }
 
 U32 IREmitter::DataAppend(const U32& counter) {
@@ -1381,35 +1386,29 @@ U1 IREmitter::FPUnordered(const F32F64& lhs, const F32F64& rhs) {
     return LogicalOr(FPIsNan(lhs), FPIsNan(rhs));
 }
 
-F32F64 IREmitter::FPMax(const F32F64& lhs, const F32F64& rhs, bool is_legacy) {
+F32F64 IREmitter::FPMax(const F32F64& lhs, const F32F64& rhs) {
     if (lhs.Type() != rhs.Type()) {
         UNREACHABLE_MSG("Mismatching types {} and {}", lhs.Type(), rhs.Type());
     }
 
     switch (lhs.Type()) {
     case Type::F32:
-        return Inst<F32>(Opcode::FPMax32, lhs, rhs, is_legacy);
+        return Inst<F32>(Opcode::FPMax32, lhs, rhs);
     case Type::F64:
-        if (is_legacy) {
-            UNREACHABLE_MSG("F64 cannot be used with LEGACY ops");
-        }
         return Inst<F64>(Opcode::FPMax64, lhs, rhs);
     default:
         ThrowInvalidType(lhs.Type());
     }
 }
 
-F32F64 IREmitter::FPMin(const F32F64& lhs, const F32F64& rhs, bool is_legacy) {
+F32F64 IREmitter::FPMin(const F32F64& lhs, const F32F64& rhs) {
     if (lhs.Type() != rhs.Type()) {
         UNREACHABLE_MSG("Mismatching types {} and {}", lhs.Type(), rhs.Type());
     }
     switch (lhs.Type()) {
     case Type::F32:
-        return Inst<F32>(Opcode::FPMin32, lhs, rhs, is_legacy);
+        return Inst<F32>(Opcode::FPMin32, lhs, rhs);
     case Type::F64:
-        if (is_legacy) {
-            UNREACHABLE_MSG("F64 cannot be used with LEGACY ops");
-        }
         return Inst<F64>(Opcode::FPMin64, lhs, rhs);
     default:
         ThrowInvalidType(lhs.Type());
@@ -1924,6 +1923,13 @@ U8U16U32U64 IREmitter::UConvert(size_t result_bitsize, const U8U16U32U64& value)
         default:
             break;
         }
+    case 64:
+        switch (value.Type()) {
+        case Type::U32:
+            return Inst<U64>(Opcode::ConvertU64U32, value);
+        default:
+            break;
+        }
     default:
         break;
     }
@@ -2053,6 +2059,11 @@ Value IREmitter::ImageAtomicXor(const Value& handle, const Value& coords, const 
 Value IREmitter::ImageAtomicExchange(const Value& handle, const Value& coords, const Value& value,
                                      TextureInstInfo info) {
     return Inst(Opcode::ImageAtomicExchange32, Flags{info}, handle, coords, value);
+}
+
+Value IREmitter::ImageAtomicCmpSwap(const Value& handle, const Value& coords, const Value& value,
+                                    const Value& cmp_value, TextureInstInfo info) {
+    return Inst(Opcode::ImageAtomicCmpSwap32, Flags{info}, handle, coords, value, cmp_value);
 }
 
 Value IREmitter::ImageSampleRaw(const Value& image_handle, const Value& sampler_handle,

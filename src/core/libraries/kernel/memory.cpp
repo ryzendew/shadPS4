@@ -89,21 +89,31 @@ s32 PS4_SYSV_ABI sceKernelAllocateMainDirectMemory(u64 len, u64 alignment, s32 m
 }
 
 s32 PS4_SYSV_ABI sceKernelCheckedReleaseDirectMemory(u64 start, u64 len) {
+    LOG_INFO(Kernel_Vmm, "called start = {:#x}, len = {:#x}", start, len);
+    if (!Common::Is16KBAligned(start) || !Common::Is16KBAligned(len)) {
+        LOG_ERROR(Kernel_Vmm, "Misaligned start or length, start = {:#x}, length = {:#x}", start,
+                  len);
+        return ORBIS_KERNEL_ERROR_EINVAL;
+    }
     if (len == 0) {
         return ORBIS_OK;
     }
-    LOG_INFO(Kernel_Vmm, "called start = {:#x}, len = {:#x}", start, len);
     auto* memory = Core::Memory::Instance();
-    memory->Free(start, len);
-    return ORBIS_OK;
+    return memory->Free(start, len, true);
 }
 
 s32 PS4_SYSV_ABI sceKernelReleaseDirectMemory(u64 start, u64 len) {
+    LOG_INFO(Kernel_Vmm, "called start = {:#x}, len = {:#x}", start, len);
+    if (!Common::Is16KBAligned(start) || !Common::Is16KBAligned(len)) {
+        LOG_ERROR(Kernel_Vmm, "Misaligned start or length, start = {:#x}, length = {:#x}", start,
+                  len);
+        return ORBIS_KERNEL_ERROR_EINVAL;
+    }
     if (len == 0) {
         return ORBIS_OK;
     }
     auto* memory = Core::Memory::Instance();
-    memory->Free(start, len);
+    memory->Free(start, len, false);
     return ORBIS_OK;
 }
 
@@ -209,7 +219,8 @@ s32 PS4_SYSV_ABI sceKernelMapNamedDirectMemory(void** addr, u64 len, s32 prot, s
 
     auto* memory = Core::Memory::Instance();
     bool should_check = false;
-    if (g_sdk_version >= Common::ElfInfo::FW_25 && False(map_flags & Core::MemoryMapFlags::Stack)) {
+    if (g_sdk_version >= Common::ElfInfo::FW_250 &&
+        False(map_flags & Core::MemoryMapFlags::Stack)) {
         // Under these conditions, this would normally redirect to sceKernelMapDirectMemory2.
         should_check = !g_alias_dmem;
     }
@@ -329,7 +340,11 @@ s32 PS4_SYSV_ABI sceKernelMprotect(const void* addr, u64 size, s32 prot) {
     Core::MemoryManager* memory_manager = Core::Memory::Instance();
     Core::MemoryProt protection_flags = static_cast<Core::MemoryProt>(prot);
 
-    return memory_manager->Protect(aligned_addr, aligned_size, protection_flags);
+    s32 result = memory_manager->Protect(aligned_addr, aligned_size, protection_flags);
+    if (result == ORBIS_OK) {
+        memory_manager->InvalidateMemory(aligned_addr, aligned_size);
+    }
+    return result;
 }
 
 s32 PS4_SYSV_ABI posix_mprotect(const void* addr, u64 size, s32 prot) {
@@ -360,6 +375,7 @@ s32 PS4_SYSV_ABI sceKernelMtypeprotect(const void* addr, u64 size, s32 mtype, s3
     s32 result = memory_manager->Protect(aligned_addr, aligned_size, protection_flags);
     if (result == ORBIS_OK) {
         memory_manager->SetDirectMemoryType(aligned_addr, aligned_size, mtype);
+        memory_manager->InvalidateMemory(aligned_addr, aligned_size);
     }
     return result;
 }
@@ -759,6 +775,17 @@ s32 PS4_SYSV_ABI posix_munmap(void* addr, u64 len) {
     return result;
 }
 
+s32 PS4_SYSV_ABI sceKernelMlock(void* addr, u64 len) {
+    LOG_ERROR(Kernel_Vmm, "(STUBBED) called, addr = {}, len = {:#x}", fmt::ptr(addr), len);
+    return ORBIS_OK;
+}
+
+s32 PS4_SYSV_ABI posix_msync(void* addr, u64 len, s32 flags) {
+    LOG_ERROR(Kernel_Vmm, "(STUBBED) called, addr = {}, len = {:#x}, flags = {}", fmt::ptr(addr),
+              len, flags);
+    return ORBIS_OK;
+}
+
 static constexpr s32 MAX_PRT_APERTURES = 3;
 static constexpr VAddr PRT_AREA_START_ADDR = 0x1000000000;
 static constexpr u64 PRT_AREA_SIZE = 0xec00000000;
@@ -850,6 +877,9 @@ void RegisterMemory(Core::Loader::SymbolsResolver* sym) {
     LIB_FUNCTION("BPE9s9vQQXo", "libScePosix", 1, "libkernel", posix_mmap);
     LIB_FUNCTION("UqDGjXA5yUM", "libkernel", 1, "libkernel", posix_munmap);
     LIB_FUNCTION("UqDGjXA5yUM", "libScePosix", 1, "libkernel", posix_munmap);
+    LIB_FUNCTION("3k6kx-zOOSQ", "libkernel", 1, "libkernel", sceKernelMlock);
+    LIB_FUNCTION("tZY4+SZNFhA", "libkernel", 1, "libkernel", posix_msync);
+    LIB_FUNCTION("tZY4+SZNFhA", "libScePosix", 1, "libkernel", posix_msync);
 
     // PRT memory management
     LIB_FUNCTION("BohYr-F7-is", "libkernel", 1, "libkernel", sceKernelSetPrtAperture);

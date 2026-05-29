@@ -8,6 +8,7 @@
 #include "common/assert.h"
 #include "common/debug.h"
 #include "common/types.h"
+#include "imgui/renderer/imgui_core.h"
 #include "sdl_window.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -115,13 +116,20 @@ Instance::Instance(Frontend::WindowSDL& window, s32 physical_device_index,
         std::sort(properties2.begin(), properties2.end(), [](const auto& left, const auto& right) {
             const vk::PhysicalDeviceProperties& left_prop = std::get<1>(left).properties;
             const vk::PhysicalDeviceProperties& right_prop = std::get<1>(right).properties;
-            if (left_prop.apiVersion >= TargetVulkanApiVersion &&
-                right_prop.apiVersion < TargetVulkanApiVersion) {
-                return true;
+            const bool left_supports_api = left_prop.apiVersion >= TargetVulkanApiVersion;
+            const bool right_supports_api = right_prop.apiVersion >= TargetVulkanApiVersion;
+            if (left_supports_api != right_supports_api) {
+                return left_supports_api;
             }
-            if (left_prop.deviceType != right_prop.deviceType) {
-                return left_prop.deviceType == vk::PhysicalDeviceType::eDiscreteGpu;
+
+            const bool left_is_discrete =
+                left_prop.deviceType == vk::PhysicalDeviceType::eDiscreteGpu;
+            const bool right_is_discrete =
+                right_prop.deviceType == vk::PhysicalDeviceType::eDiscreteGpu;
+            if (left_is_discrete != right_is_discrete) {
+                return left_is_discrete;
             }
+
             constexpr auto get_mem = [](const vk::PhysicalDeviceMemoryProperties& mem) -> size_t {
                 size_t max = 0;
                 for (u32 i = 0; i < mem.memoryHeapCount; i++) {
@@ -157,32 +165,12 @@ Instance::Instance(Frontend::WindowSDL& window, s32 physical_device_index,
 
     CreateDevice();
     CollectPhysicalMemoryInfo();
+    CollectImageFormatInfo();
     CollectToolingInfo();
-
-    // Check and log format support details.
-    for (const auto& format : LiverpoolToVK::SurfaceFormats()) {
-        if (!IsFormatSupported(format.vk_format, format.flags)) {
-            LOG_WARNING(Render_Vulkan,
-                        "Surface format data_format={}, number_format={} is not fully supported "
-                        "(vk_format={}, missing features={})",
-                        static_cast<u32>(format.data_format),
-                        static_cast<u32>(format.number_format), vk::to_string(format.vk_format),
-                        vk::to_string(format.flags & ~GetFormatFeatureFlags(format.vk_format)));
-        }
-    }
-    for (const auto& format : LiverpoolToVK::DepthFormats()) {
-        if (!IsFormatSupported(format.vk_format, format.flags)) {
-            LOG_WARNING(Render_Vulkan,
-                        "Depth format z_format={}, stencil_format={} is not fully supported "
-                        "(vk_format={}, missing features={})",
-                        static_cast<u32>(format.z_format), static_cast<u32>(format.stencil_format),
-                        vk::to_string(format.vk_format),
-                        vk::to_string(format.flags & ~GetFormatFeatureFlags(format.vk_format)));
-        }
-    }
 }
 
 Instance::~Instance() {
+    ImGui::Core::Shutdown(GetDevice());
     vmaDestroyAllocator(allocator);
 }
 
@@ -215,14 +203,17 @@ bool Instance::CreateDevice() {
                           vk::PhysicalDevicePrimitiveTopologyListRestartFeaturesEXT,
                           vk::PhysicalDevicePortabilitySubsetFeaturesKHR,
                           vk::PhysicalDeviceShaderAtomicFloat2FeaturesEXT,
-                          vk::PhysicalDeviceWorkgroupMemoryExplicitLayoutFeaturesKHR>();
+                          vk::PhysicalDeviceWorkgroupMemoryExplicitLayoutFeaturesKHR,
+                          vk::PhysicalDeviceImage2DViewOf3DFeaturesEXT>();
     features = feature_chain.get().features;
 
     const vk::StructureChain properties_chain = physical_device.getProperties2<
         vk::PhysicalDeviceProperties2, vk::PhysicalDeviceVulkan11Properties,
-        vk::PhysicalDeviceVulkan12Properties, vk::PhysicalDevicePushDescriptorPropertiesKHR>();
+        vk::PhysicalDeviceVulkan12Properties, vk::PhysicalDeviceVulkan13Properties,
+        vk::PhysicalDevicePushDescriptorPropertiesKHR>();
     vk11_props = properties_chain.get<vk::PhysicalDeviceVulkan11Properties>();
     vk12_props = properties_chain.get<vk::PhysicalDeviceVulkan12Properties>();
+    vk13_props = properties_chain.get<vk::PhysicalDeviceVulkan13Properties>();
     push_descriptor_props = properties_chain.get<vk::PhysicalDevicePushDescriptorPropertiesKHR>();
     LOG_INFO(Render_Vulkan, "Physical device subgroup size {}", vk11_props.subgroupSize);
 
@@ -323,14 +314,25 @@ bool Instance::CreateDevice() {
             Render_Vulkan, "- workgroupMemoryExplicitLayout16BitAccess: {}",
             workgroup_memory_explicit_layout_features.workgroupMemoryExplicitLayout16BitAccess);
     }
+    image_2d_view_of_3d = add_extension(VK_EXT_IMAGE_2D_VIEW_OF_3D_EXTENSION_NAME);
+    if (image_2d_view_of_3d) {
+        image_2d_view_of_3d_features =
+            feature_chain.get<vk::PhysicalDeviceImage2DViewOf3DFeaturesEXT>();
+        LOG_INFO(Render_Vulkan, "- image2DViewOf3D: {}",
+                 image_2d_view_of_3d_features.image2DViewOf3D);
+        LOG_INFO(Render_Vulkan, "- sampler2DViewOf3D: {}",
+                 image_2d_view_of_3d_features.sampler2DViewOf3D);
+    }
     const bool calibrated_timestamps =
         TRACY_GPU_ENABLED ? add_extension(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME) : false;
 
 #ifdef __APPLE__
-    // Required by Vulkan spec if supported.
-    portability_subset = add_extension(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-    if (portability_subset) {
-        portability_features = feature_chain.get<vk::PhysicalDevicePortabilitySubsetFeaturesKHR>();
+    if (driver_id == vk::DriverId::eMoltenvk) {
+        portability_subset = add_extension(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+        if (portability_subset) {
+            portability_features =
+                feature_chain.get<vk::PhysicalDevicePortabilitySubsetFeaturesKHR>();
+        }
     }
 #endif
 
@@ -367,7 +369,7 @@ bool Instance::CreateDevice() {
         feature_chain.get<vk::PhysicalDevicePrimitiveTopologyListRestartFeaturesEXT>();
     const auto vk11_features = feature_chain.get<vk::PhysicalDeviceVulkan11Features>();
     vk12_features = feature_chain.get<vk::PhysicalDeviceVulkan12Features>();
-    const auto vk13_features = feature_chain.get<vk::PhysicalDeviceVulkan13Features>();
+    vk13_features = feature_chain.get<vk::PhysicalDeviceVulkan13Features>();
     vk::StructureChain device_chain = {
         vk::DeviceCreateInfo{
             .queueCreateInfoCount = 1u,
@@ -429,6 +431,7 @@ bool Instance::CreateDevice() {
         vk::PhysicalDeviceVulkan13Features{
             .robustImageAccess = vk13_features.robustImageAccess,
             .shaderDemoteToHelperInvocation = vk13_features.shaderDemoteToHelperInvocation,
+            .subgroupSizeControl = vk13_features.subgroupSizeControl,
             .synchronization2 = vk13_features.synchronization2,
             .dynamicRendering = vk13_features.dynamicRendering,
             .maintenance4 = vk13_features.maintenance4,
@@ -497,6 +500,10 @@ bool Instance::CreateDevice() {
             .workgroupMemoryExplicitLayout16BitAccess =
                 workgroup_memory_explicit_layout_features.workgroupMemoryExplicitLayout16BitAccess,
         },
+        vk::PhysicalDeviceImage2DViewOf3DFeaturesEXT{
+            .image2DViewOf3D = image_2d_view_of_3d_features.image2DViewOf3D,
+            .sampler2DViewOf3D = image_2d_view_of_3d_features.sampler2DViewOf3D,
+        },
 #ifdef __APPLE__
         vk::PhysicalDevicePortabilitySubsetFeaturesKHR{
             .constantAlphaColorBlendFactors = portability_features.constantAlphaColorBlendFactors,
@@ -562,6 +569,9 @@ bool Instance::CreateDevice() {
     }
     if (!workgroup_memory_explicit_layout) {
         device_chain.unlink<vk::PhysicalDeviceWorkgroupMemoryExplicitLayoutFeaturesKHR>();
+    }
+    if (!image_2d_view_of_3d) {
+        device_chain.unlink<vk::PhysicalDeviceImage2DViewOf3DFeaturesEXT>();
     }
 
     auto [device_result, dev] = physical_device.createDeviceUnique(device_chain.get());
@@ -698,6 +708,44 @@ void Instance::CollectPhysicalMemoryInfo() {
     const s64 available_memory = static_cast<s64>(total_memory_budget - device_initial_usage);
     total_memory_budget =
         static_cast<u64>(std::max<s64>(available_memory - 8_GB, static_cast<s64>(local_memory)));
+}
+
+void Instance::CollectImageFormatInfo() {
+    // Check for block texel view support using basic image format info.
+    const vk::PhysicalDeviceImageFormatInfo2 block_texel_view_info{
+        .format = vk::Format::eBc1RgbaUnormBlock,
+        .type = vk::ImageType::e2D,
+        .tiling = vk::ImageTiling::eOptimal,
+        .usage = vk::ImageUsageFlagBits::eSampled,
+        .flags = vk::ImageCreateFlagBits::eBlockTexelViewCompatible,
+    };
+    const auto block_texel_view_props =
+        physical_device.getImageFormatProperties2(block_texel_view_info);
+    supports_block_texel_view = block_texel_view_props.result == vk::Result::eSuccess;
+    LOG_INFO(Render_Vulkan, "Block Texel View support: {}",
+             supports_block_texel_view ? "Yes" : "No");
+
+    // Check and log format support details.
+    for (const auto& format : LiverpoolToVK::SurfaceFormats()) {
+        if (!IsFormatSupported(format.vk_format, format.flags)) {
+            LOG_WARNING(Render_Vulkan,
+                        "Surface format data_format={}, number_format={} is not fully supported "
+                        "(vk_format={}, missing features={})",
+                        static_cast<u32>(format.data_format),
+                        static_cast<u32>(format.number_format), vk::to_string(format.vk_format),
+                        vk::to_string(format.flags & ~GetFormatFeatureFlags(format.vk_format)));
+        }
+    }
+    for (const auto& format : LiverpoolToVK::DepthFormats()) {
+        if (!IsFormatSupported(format.vk_format, format.flags)) {
+            LOG_WARNING(Render_Vulkan,
+                        "Depth format z_format={}, stencil_format={} is not fully supported "
+                        "(vk_format={}, missing features={})",
+                        static_cast<u32>(format.z_format), static_cast<u32>(format.stencil_format),
+                        vk::to_string(format.vk_format),
+                        vk::to_string(format.flags & ~GetFormatFeatureFlags(format.vk_format)));
+        }
+    }
 }
 
 void Instance::CollectToolingInfo() const {
